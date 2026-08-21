@@ -151,12 +151,20 @@
     if (!tip) {
       tip = document.createElement("div");
       tip.className = "slop-detector-tip-host";
+      Object.assign(tip.style, {
+        position: "fixed",
+        left: "0px",
+        top: "0px",
+        zIndex: "2147483645",
+        pointerEvents: "none",
+        width: "max-content",
+        maxWidth: "min(340px, calc(100vw - 16px))",
+      });
       const shadow = tip.attachShadow({ mode: "open" });
       shadow.innerHTML = `
         <style>
           .tip {
-            all: initial; position: fixed; z-index: 2147483645; pointer-events: none;
-            width: max-content;
+            all: initial;
             background: #23241F; color: #F6F4EE; border-radius: 3px;
             padding: 4px 7px;
             font: 700 10px/1 "Courier New", monospace; letter-spacing: .08em;
