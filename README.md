@@ -43,4 +43,9 @@ npm test        # engine + scanner test suites
 
 - Rule-based detection flags *style*, not authorship. A clean score means
   no stylistic fingerprints — it cannot prove who or what wrote a text.
-- CSS Custom Highlight API requires Chrome 105+ (scanner no-ops on older).
+- CSS Custom Highlight API requires Chrome 105+ (enforced via
+  `minimum_chrome_version` in the manifest).
+
+## License
+
+[MIT](LICENSE)

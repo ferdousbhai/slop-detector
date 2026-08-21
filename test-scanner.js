@@ -103,6 +103,16 @@ test("toggle off clears highlights and badge", async () => {
   assert.strictEqual(w.document.querySelector(".slop-detector-badge-host"), null);
 });
 
+test("toggling back on re-scans already-seen blocks", async () => {
+  const { w, set } = boot(`<p>${SLOP_P}</p>`);
+  await tick();
+  set("autoScanPages", false);
+  await tick();
+  set("autoScanPages", true);
+  await tick();
+  assert.ok(highlightedTexts(w).some((t) => /pivotal moment/i.test(t)), "highlights must be restored");
+});
+
 test("starts disabled when setting is off", async () => {
   const { w } = boot(`<p>${SLOP_P}</p>`, { autoScanPages: false });
   await tick();

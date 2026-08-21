@@ -12,7 +12,7 @@
 
   // ---------- state ----------
 
-  const processedBlocks = new WeakSet();
+  let processedBlocks = new WeakSet();
   let scanEnabled = true;
   let observer = null;
   let highlight = null;
@@ -98,6 +98,9 @@
   // ---------- badge ----------
 
   function updateBadge() {
+    // Drop ranges whose text was removed from the DOM so the count and
+    // cycling stay accurate on long-lived pages.
+    allRanges = allRanges.filter((r) => r.startContainer.isConnected);
     if (!badge) {
       badge = document.createElement("div");
       badge.className = "slop-detector-badge-host";
@@ -170,6 +173,7 @@
     highlight = null;
     allRanges = [];
     cycleIndex = 0;
+    processedBlocks = new WeakSet();
     badge?.remove();
     badge = null;
   }

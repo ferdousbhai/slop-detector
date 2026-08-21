@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: [20, 22]
+        node-version: [22, 24]
     name: Tests (Node ${{ matrix.node-version }})
     steps:
       - name: Check out repository
@@ -30,11 +30,5 @@ jobs:
 
       - name: Validate extension files
         run: |
-          node -e "
-            const fs = require('fs');
-            for (const f of fs.readdirSync('extension').filter(x => x.endsWith('.js'))) {
-              new Function(fs.readFileSync('extension/' + f, 'utf8'));
-            }
-            JSON.parse(fs.readFileSync('extension/manifest.json', 'utf8'));
-            console.log('extension files valid');
-          "
+          for f in extension/*.js; do node --check "$f"; done
+          node -e "JSON.parse(require('fs').readFileSync('extension/manifest.json', 'utf8')); console.log('extension files valid')"

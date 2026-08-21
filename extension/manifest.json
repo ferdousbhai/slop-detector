@@ -3,6 +3,7 @@
   "name": "Slop Detector",
   "version": "1.0.0",
   "description": "Red-pen linting for AI-flavored writing. Check your drafts, or vet messages you receive.",
+  "minimum_chrome_version": "105",
   "permissions": [
     "contextMenus",
     "storage"

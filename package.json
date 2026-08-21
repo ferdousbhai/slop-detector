@@ -2,14 +2,15 @@
   "name": "slop-detector",
   "version": "1.0.0",
   "description": "Browser extension that lints prose for AI-slop patterns",
+  "private": true,
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "test": "node --test test.js test-scanner.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "dependencies": {
+  "devDependencies": {
     "jsdom": "^30.0.1"
-  },
-  "private": true
+  }
 }

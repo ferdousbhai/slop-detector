@@ -4,7 +4,7 @@
    Pattern sources: dmmulroy/anti-slop (architecture), cursor/plugins
    unslop skill, petergyang/no-ai-slop (pattern lists). */
 
-(function (root) {
+(() => {
   "use strict";
 
   const SEV = { MINOR: "minor", MAJOR: "major" };
@@ -274,20 +274,20 @@
     for (const rule of rules) findings.push(...rule.run(text));
     findings.sort((a, b) => a.start - b.start);
 
-    const w = Math.max(words(text).length, 1);
+    const wc = words(text).length;
     let points = 0;
     for (const f of findings) points += f.severity === SEV.MAJOR ? 12 : 5;
-    const score = Math.min(100, Math.round(points * Math.min(1, 60 / w) + points * 0.4));
+    const score = Math.min(100, Math.round(points * Math.min(1, 60 / Math.max(wc, 1)) + points * 0.4));
 
     let verdict, label;
     if (score >= 50) { verdict = "slop"; label = "CERTIFIED SLOP"; }
     else if (score >= 20) { verdict = "suspicious"; label = "SUSPICIOUS"; }
     else { verdict = "human"; label = "READS HUMAN"; }
 
-    return { score, verdict, label, findings, wordCount: words(text).length };
+    return { score, verdict, label, findings, wordCount: wc };
   }
 
   const api = { analyze, rules };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  root.SlopEngine = api;
-})(typeof globalThis !== "undefined" ? globalThis : this);
+  globalThis.SlopEngine = api;
+})();
