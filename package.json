@@ -1,0 +1,15 @@
+{
+  "name": "slop-detector",
+  "version": "1.0.0",
+  "description": "Browser extension that lints prose for AI-slop patterns",
+  "scripts": {
+    "test": "node --test test.js test-scanner.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "jsdom": "^30.0.1"
+  },
+  "private": true
+}

@@ -1,0 +1,35 @@
+{
+  "manifest_version": 3,
+  "name": "Slop Detector",
+  "version": "1.0.0",
+  "description": "Red-pen linting for AI-flavored writing. Check your drafts, or vet messages you receive.",
+  "permissions": [
+    "contextMenus",
+    "storage"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Slop Detector"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "engine.js",
+        "content.js",
+        "scanner.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

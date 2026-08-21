@@ -1,0 +1,201 @@
+/* Universal auto-scan, Google-Translate style. One consistent behavior on
+   every site: walk visible text, segment into blocks, lint each, and
+   underline findings via the CSS Custom Highlight API. Nothing is ever
+   hidden or removed from the page. */
+
+(() => {
+  "use strict";
+
+  const SKIP_TAGS = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "TEXTAREA", "INPUT", "SELECT", "CODE", "PRE", "SVG", "IFRAME"]);
+  const BLOCK_TAGS = new Set(["P", "DIV", "LI", "BLOCKQUOTE", "ARTICLE", "SECTION", "TD", "DD", "FIGCAPTION", "H1", "H2", "H3", "H4", "H5", "H6"]);
+  const MIN_WORDS = 15;
+
+  // ---------- state ----------
+
+  const processedBlocks = new WeakSet();
+  let scanEnabled = true;
+  let observer = null;
+  let highlight = null;
+  let allRanges = [];
+  let cycleIndex = 0;
+  let badge = null;
+  let badgeCount = null;
+
+  const highlightSupported = typeof Highlight !== "undefined" && typeof CSS !== "undefined" && CSS.highlights;
+
+  // ---------- block discovery ----------
+
+  function blockOf(node) {
+    let el = node.parentElement;
+    while (el && !BLOCK_TAGS.has(el.tagName)) el = el.parentElement;
+    return el;
+  }
+
+  function collectBlocks(root) {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode(n) {
+        if (!n.nodeValue || !n.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+        for (let el = n.parentElement; el; el = el.parentElement) {
+          if (SKIP_TAGS.has(el.tagName) || el.isContentEditable || el.getAttribute("aria-hidden") === "true") {
+            return NodeFilter.FILTER_REJECT;
+          }
+        }
+        return NodeFilter.FILTER_ACCEPT;
+      },
+    });
+    const blocks = new Map();
+    let n;
+    while ((n = walker.nextNode())) {
+      const block = blockOf(n);
+      if (!block || processedBlocks.has(block)) continue;
+      if (!blocks.has(block)) blocks.set(block, []);
+      blocks.get(block).push(n);
+    }
+    return blocks;
+  }
+
+  // ---------- underline linting ----------
+
+  function lintBlock(block, textNodes) {
+    processedBlocks.add(block);
+    if (!scanEnabled || !highlightSupported) return 0;
+    let text = "";
+    const offsets = [];
+    for (const node of textNodes) {
+      offsets.push({ node, start: text.length, end: text.length + node.nodeValue.length });
+      text += node.nodeValue;
+    }
+    if (text.trim().split(/\s+/).length < MIN_WORDS) return 0;
+
+    const result = globalThis.SlopEngine.analyze(text);
+    let added = 0;
+    for (const f of result.findings) {
+      if (f.end <= f.start) continue;
+      const startEntry = offsets.find((o) => f.start >= o.start && f.start < o.end);
+      const endEntry = offsets.find((o) => f.end > o.start && f.end <= o.end);
+      if (!startEntry || !endEntry) continue;
+      try {
+        const range = new Range();
+        range.setStart(startEntry.node, f.start - startEntry.start);
+        range.setEnd(endEntry.node, f.end - endEntry.start);
+        highlight.add(range);
+        allRanges.push(range);
+        added++;
+      } catch { /* detached node; skip */ }
+    }
+    return added;
+  }
+
+  function scan(root) {
+    if (!scanEnabled) return;
+    let added = 0;
+    for (const [block, nodes] of collectBlocks(root instanceof Element ? root : document.body)) {
+      added += lintBlock(block, nodes);
+    }
+    if (added > 0) updateBadge();
+  }
+
+  // ---------- badge ----------
+
+  function updateBadge() {
+    if (!badge) {
+      badge = document.createElement("div");
+      badge.className = "slop-detector-badge-host";
+      const shadow = badge.attachShadow({ mode: "open" });
+      shadow.innerHTML = `
+        <style>
+          .pill {
+            all: initial; position: fixed; left: 16px; bottom: 16px; z-index: 2147483646;
+            display: flex; align-items: center; gap: 8px;
+            background: #F6F4EE; border: 1.5px solid #23241F; border-radius: 3px;
+            box-shadow: 3px 3px 0 rgba(35,36,31,.85);
+            padding: 7px 11px; cursor: pointer;
+            font: 700 11px/1 "Courier New", monospace; letter-spacing: .08em; color: #23241F;
+          }
+          .n { color: #C42B1F; }
+          .x { border: none; background: none; cursor: pointer; font: 700 12px/1 monospace; color: #55564F; padding: 0 0 0 2px; }
+        </style>
+        <div class="pill" role="button" title="Click to jump between findings">
+          <span><span class="n">0</span> SLOP MARKS</span>
+          <button class="x" aria-label="Dismiss" title="Dismiss">✕</button>
+        </div>`;
+      badgeCount = shadow.querySelector(".n");
+      shadow.querySelector(".pill").addEventListener("click", (e) => {
+        if (e.target.closest(".x")) return;
+        if (!allRanges.length) return;
+        const r = allRanges[cycleIndex % allRanges.length];
+        cycleIndex++;
+        r.startContainer.parentElement?.scrollIntoView({ block: "center", behavior: "smooth" });
+      });
+      shadow.querySelector(".x").addEventListener("click", () => badge.remove());
+      document.documentElement.appendChild(badge);
+    }
+    if (!badge.isConnected) return;
+    badgeCount.textContent = String(allRanges.length);
+  }
+
+  // ---------- lifecycle ----------
+
+  function ensureObserver() {
+    if (observer) return;
+    let pending = false;
+    observer = new MutationObserver(() => {
+      if (pending) return;
+      pending = true;
+      requestAnimationFrame(() => {
+        pending = false;
+        scan(document.body);
+      });
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+  }
+
+  function startScan() {
+    if (!highlightSupported) return;
+    if (!highlight) {
+      highlight = new Highlight();
+      CSS.highlights.set("slop-mark", highlight);
+    }
+    if (!document.getElementById("slop-detector-highlight-style")) {
+      const style = document.createElement("style");
+      style.id = "slop-detector-highlight-style";
+      style.textContent =
+        "::highlight(slop-mark){background-color:rgba(249,226,125,.85);color:inherit;text-decoration:underline wavy #C42B1F 1.5px;}";
+      document.documentElement.appendChild(style);
+    }
+  }
+
+  function stopScan() {
+    CSS.highlights?.delete("slop-mark");
+    highlight = null;
+    allRanges = [];
+    cycleIndex = 0;
+    badge?.remove();
+    badge = null;
+  }
+
+  function boot() {
+    if (!scanEnabled) return;
+    startScan();
+    scan(document.body);
+    ensureObserver();
+  }
+
+  chrome.storage.sync.get({ autoScanPages: true }, (v) => {
+    scanEnabled = !!v.autoScanPages;
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", boot, { once: true });
+    } else {
+      boot();
+    }
+  });
+
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== "sync") return;
+    if ("autoScanPages" in changes) {
+      scanEnabled = !!changes.autoScanPages.newValue;
+      if (scanEnabled) { startScan(); scan(document.body); ensureObserver(); }
+      else stopScan();
+    }
+  });
+})();

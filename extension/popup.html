@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Slop Detector</title>
+<style>
+  :root {
+    --paper: #F6F4EE;
+    --ink: #23241F;
+    --graphite: #55564F;
+    --red: #C42B1F;
+    --amber: #8A6100;
+    --green: #2E6B34;
+    --mark: #F9E27D;
+  }
+  * { box-sizing: border-box; }
+  body {
+    width: 420px; margin: 0; padding: 16px;
+    background: var(--paper); color: var(--ink);
+    font: 13px/1.5 -apple-system, system-ui, sans-serif;
+  }
+  header { display: flex; align-items: baseline; gap: 8px; margin-bottom: 12px; }
+  h1 {
+    margin: 0; font: 700 16px/1 "American Typewriter", "Courier New", monospace;
+    letter-spacing: .06em;
+  }
+  header small { color: var(--graphite); font: 11px/1 "Courier New", monospace; }
+  textarea {
+    width: 100%; height: 130px; resize: vertical;
+    background: #FFFFFF; color: var(--ink);
+    border: 1.5px solid var(--ink); border-radius: 3px;
+    padding: 10px; font: 13px/1.55 "Courier New", monospace;
+  }
+  textarea:focus { outline: 2px solid var(--red); outline-offset: 1px; }
+  .bar { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+  button {
+    background: var(--ink); color: var(--paper); border: none; border-radius: 3px;
+    padding: 8px 14px; font: 700 12px/1 "Courier New", monospace;
+    letter-spacing: .08em; cursor: pointer;
+  }
+  button:hover { background: #000; }
+  button:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+  #stamp {
+    display: none; transform: rotate(-4deg);
+    border: 3px double; padding: 6px 10px; border-radius: 3px;
+    font: 700 14px/1 "American Typewriter", "Courier New", monospace; letter-spacing: .12em;
+  }
+  #score { color: var(--graphite); font: 700 12px/1 "Courier New", monospace; }
+  #marked {
+    display: none; margin-top: 12px; padding: 10px;
+    background: #FFFFFF; border: 1.5px solid var(--ink); border-radius: 3px;
+    font: 13px/1.7 "Courier New", monospace; white-space: pre-wrap; word-wrap: break-word;
+  }
+  mark {
+    background: var(--mark);
+    border-bottom: 2px solid var(--red);
+    padding: 0 1px;
+  }
+  #findings { margin: 12px 0 0; padding: 0; list-style: none; display: none; }
+  #findings li { margin-bottom: 8px; padding-left: 10px; border-left: 3px solid var(--red); }
+  #findings .tag {
+    display: block; font: 700 10px/1.6 "Courier New", monospace;
+    letter-spacing: .08em; text-transform: uppercase; color: var(--graphite);
+  }
+  #clean { display: none; color: var(--green); margin-top: 12px; }
+  footer { margin-top: 12px; color: var(--graphite); font-size: 11px; }
+  .toggle {
+    display: flex; align-items: center; gap: 8px; margin-top: 14px;
+    padding-top: 12px; border-top: 1px dashed var(--graphite);
+    font: 12px/1 "Courier New", monospace; cursor: pointer;
+  }
+  .toggle input { accent-color: var(--red); width: 15px; height: 15px; cursor: pointer; }
+  .toggle-tight { margin-top: 8px; padding-top: 0; border-top: none; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>SLOP DETECTOR</h1>
+    <small>red-pen lint for prose</small>
+  </header>
+
+  <textarea id="input" placeholder="Paste a draft or a message you received…" aria-label="Text to analyze"></textarea>
+
+  <div class="bar">
+    <button id="check">RUN CHECK</button>
+    <span id="stamp"></span>
+    <span id="score"></span>
+  </div>
+
+  <div id="marked" aria-live="polite"></div>
+  <ul id="findings"></ul>
+  <p id="clean">No slop patterns found. Ship it.</p>
+
+  <label class="toggle">
+    <input type="checkbox" id="autoScan" checked />
+    Auto-scan pages and underline slop
+  </label>
+
+  <footer>Tip: right-click any selected text on a page → “Check selection for slop”.</footer>
+
+  <script src="engine.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
