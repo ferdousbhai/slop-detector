@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [20, 22]
+    name: Tests (Node ${{ matrix.node-version }})
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run test suite
+        run: npm test
+
+      - name: Validate extension files
+        run: |
+          node -e "
+            const fs = require('fs');
+            for (const f of fs.readdirSync('extension').filter(x => x.endsWith('.js'))) {
+              new Function(fs.readFileSync('extension/' + f, 'utf8'));
+            }
+            JSON.parse(fs.readFileSync('extension/manifest.json', 'utf8'));
+            console.log('extension files valid');
+          "
