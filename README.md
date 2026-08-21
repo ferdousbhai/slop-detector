@@ -11,8 +11,9 @@ architecture, with patterns drawn from the
 - **Auto-scan** — every page's visible text is segmented into blocks and
   linted automatically (Google-Translate style). Findings get a yellow
   highlight + wavy red underline via the CSS Custom Highlight API, so the
-  page's DOM is never modified. A badge shows the finding count; click it
-  to cycle through findings. Nothing is ever hidden or removed.
+  page's DOM is never modified. Hover a mark to see which rule triggered;
+  a badge shows the finding count — click it to cycle through findings.
+  Nothing is ever hidden or removed.
 - **Popup checker** — paste any draft, get highlighted findings and a
   rubber-stamp verdict (READS HUMAN / SUSPICIOUS / CERTIFIED SLOP).
 - **Right-click** — "Check selection for slop" on any selected text.

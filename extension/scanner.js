@@ -20,6 +20,8 @@
   let cycleIndex = 0;
   let badge = null;
   let badgeCount = null;
+  let tip = null;
+  let tipText = null;
 
   const highlightSupported = typeof Highlight !== "undefined" && typeof CSS !== "undefined" && CSS.highlights;
 
@@ -78,6 +80,7 @@
         const range = new Range();
         range.setStart(startEntry.node, f.start - startEntry.start);
         range.setEnd(endEntry.node, f.end - endEntry.start);
+        range.slopRule = f.ruleId;
         highlight.add(range);
         allRanges.push(range);
         added++;
@@ -137,6 +140,66 @@
     badgeCount.textContent = String(allRanges.length);
   }
 
+  // ---------- hover rule label ----------
+
+  function hideTip() {
+    tip?.remove();
+    tip = null;
+  }
+
+  function showTip(range) {
+    if (!tip) {
+      tip = document.createElement("div");
+      tip.className = "slop-detector-tip-host";
+      const shadow = tip.attachShadow({ mode: "open" });
+      shadow.innerHTML = `
+        <style>
+          .tip {
+            all: initial; position: fixed; z-index: 2147483645; pointer-events: none;
+            width: max-content;
+            background: #23241F; color: #F6F4EE; border-radius: 3px;
+            padding: 4px 7px;
+            font: 700 10px/1 "Courier New", monospace; letter-spacing: .08em;
+          }
+        </style>
+        <div class="tip"></div>`;
+      tipText = shadow.querySelector(".tip");
+      document.documentElement.appendChild(tip);
+    }
+    if (!tip.isConnected) return;
+    tipText.textContent = range.slopRule;
+    const r = range.getBoundingClientRect();
+    const tw = tip.offsetWidth, th = tip.offsetHeight;
+    const x = Math.max(8, Math.min(r.left + r.width / 2 - tw / 2, window.innerWidth - tw - 8));
+    let y = r.top - th - 6;
+    if (y < 8) y = r.bottom + 6;
+    tip.style.left = `${Math.round(x)}px`;
+    tip.style.top = `${Math.round(y)}px`;
+  }
+
+  function caretPointAt(x, y) {
+    if (document.caretRangeFromPoint) return document.caretRangeFromPoint(x, y);
+    const p = document.caretPositionFromPoint?.(x, y);
+    return p ? { startContainer: p.offsetNode, startOffset: p.offset } : null;
+  }
+
+  let pendingHover = false;
+  document.addEventListener("mousemove", (e) => {
+    if (!scanEnabled || !allRanges.length) { hideTip(); return; }
+    if (pendingHover) return;
+    pendingHover = true;
+    requestAnimationFrame(() => {
+      pendingHover = false;
+      const pos = caretPointAt(e.clientX, e.clientY);
+      const hit = pos && pos.startContainer.nodeType === Node.TEXT_NODE
+        ? allRanges.find((r) => r.slopRule && r.isPointInRange(pos.startContainer, pos.startOffset))
+        : null;
+      if (hit) showTip(hit); else hideTip();
+    });
+  });
+  document.documentElement.addEventListener("mouseleave", hideTip);
+  window.addEventListener("scroll", hideTip, { capture: true, passive: true });
+
   // ---------- lifecycle ----------
 
   function ensureObserver() {
@@ -176,6 +239,7 @@
     processedBlocks = new WeakSet();
     badge?.remove();
     badge = null;
+    hideTip();
   }
 
   function boot() {

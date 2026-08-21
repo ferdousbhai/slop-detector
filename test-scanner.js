@@ -72,6 +72,30 @@ test("badge appears with the finding count", async () => {
   assert.strictEqual(Number(n), highlightedTexts(w).length);
 });
 
+test("hovering a marked phrase shows its rule id", async () => {
+  const { w } = boot(`<p>${SLOP_P}</p>`);
+  await tick();
+  const p = [...w.document.querySelectorAll("p")].find((el) => /pivotal moment/.test(el.textContent));
+  const tn = p.firstChild;
+  w.document.caretRangeFromPoint = () => ({ startContainer: tn, startOffset: tn.nodeValue.indexOf("pivotal") });
+  w.document.dispatchEvent(new w.MouseEvent("mousemove", { clientX: 10, clientY: 10 }));
+  await tick();
+  const tip = w.document.querySelector(".slop-detector-tip-host");
+  assert.ok(tip, "tooltip should appear on hover");
+  assert.match(tip.shadowRoot.textContent, /puffery/);
+});
+
+test("hovering unmarked text shows no tooltip", async () => {
+  const { w } = boot(`<p>${SLOP_P}</p><p>${HUMAN_P}</p>`);
+  await tick();
+  const p = [...w.document.querySelectorAll("p")].find((el) => /coffee shop/.test(el.textContent));
+  const tn = p.firstChild;
+  w.document.caretRangeFromPoint = () => ({ startContainer: tn, startOffset: 0 });
+  w.document.dispatchEvent(new w.MouseEvent("mousemove", { clientX: 10, clientY: 10 }));
+  await tick();
+  assert.strictEqual(w.document.querySelector(".slop-detector-tip-host"), null);
+});
+
 test("clean page shows no badge and no highlights", async () => {
   const { w } = boot(`<p>${HUMAN_P}</p>`);
   await tick();
