@@ -107,7 +107,13 @@
     { id: "filler-phrase", sev: SEV.MINOR, p: /\bthe (?:reality|truth) is\b/i, why: "Often-empty phrase." },
     { id: "filler-phrase", sev: SEV.MINOR, p: /\bgoing forward\b/i, why: "Often-empty phrase." },
 
-    // --- AI vocabulary, single words (minor) ---
+    // --- fancy ways to say "is" (minor) ---
+    { id: "inflated-verb", sev: SEV.MINOR, p: /\bserves? as\b/i, why: "\u2192 just say \u201Cis\u201D." },
+    { id: "inflated-verb", sev: SEV.MINOR, p: /\bstands? as\b/i, why: "\u2192 just say \u201Cis\u201D." },
+    { id: "inflated-verb", sev: SEV.MINOR, p: /\bboasts?\b/i, why: "\u2192 \u201Chas\u201D." },
+
+    // --- landscape cliche (major) + AI vocabulary, single words (minor) ---
+    { id: "landscape-cliche", sev: SEV.MAJOR, p: /\bnavigat(?:e|ing) (?:the|this|these|today's) (?:complex|challenging|evolving|landscape)/i, why: "\u201CNavigating the X landscape\u201D clich\u00E9." },
     ...[
       ["delve", "Top AI tell."], ["tapestry", "AI metaphor noun."], ["foster(?:s|ing|ed)?", "AI vocabulary."],
       ["leverag(?:e|es|ing|ed)", "\u2192 \u201Cuse\u201D."], ["utiliz(?:e|es|ing|ed)", "\u2192 \u201Cuse\u201D."],
@@ -125,16 +131,8 @@
       ["testament", "AI vocabulary."], ["underscor(?:e|es|ing|ed)", "AI vocabulary."],
       ["nestled", "Promotional word."], ["breathtaking", "Promotional word."], ["renowned", "Promotional word."],
       ["stunning", "Promotional word."], ["must-visit", "Promotional word."],
+      ["dive (?:deep(?:er)? )?into", "AI-favored verb."],
     ].map(([w, why]) => ({ id: "ai-vocabulary", sev: SEV.MINOR, p: new RegExp("\\b" + w + "\\b", "i"), why })),
-
-    // --- fancy ways to say "is" (minor) ---
-    { id: "fancy-is", sev: SEV.MINOR, p: /\bserves? as\b/i, why: "\u2192 just say \u201Cis\u201D." },
-    { id: "fancy-is", sev: SEV.MINOR, p: /\bstands? as\b/i, why: "\u2192 just say \u201Cis\u201D." },
-    { id: "fancy-is", sev: SEV.MINOR, p: /\bboasts?\b/i, why: "\u2192 \u201Chas\u201D." },
-
-    // --- misc from v1 ---
-    { id: "banned-phrase", sev: SEV.MAJOR, p: /\bnavigat(?:e|ing) (?:the|this|these|today's) (?:complex|challenging|evolving|landscape)/i, why: "\u201CNavigating the X landscape\u201D clich\u00E9." },
-    { id: "banned-phrase", sev: SEV.MINOR, p: /\bdive (?:deep(?:er)? )?into\b/i, why: "AI-favored verb." },
   ];
 
   // ---------- rule definitions ----------
@@ -178,14 +176,14 @@
       },
     },
     {
-      id: "ing-analysis",
+      id: "ing-explainer",
       run(text) {
         return findAll(
           text,
           /,\s+(?:highlighting|underscoring|reflecting|showcasing|fostering|ensuring|emphasizing|demonstrating|signaling|cementing)\b[^.!?\n]{0,60}/gi,
           (m) => ({
             start: m.index, end: m.index + m[0].length,
-            ruleId: "ing-analysis", severity: SEV.MAJOR,
+            ruleId: "ing-explainer", severity: SEV.MAJOR,
             message: "Trailing \u201C-ing\u201D clause pretending to explain meaning \u2014 delete or replace with a concrete fact.",
           })
         );

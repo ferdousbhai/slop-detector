@@ -74,7 +74,15 @@ test("binary contrast variants flagged", () => {
 
 test("trailing -ing analysis clause flagged", () => {
   const r = analyze("The update adds file search, highlighting the team's commitment to better workflows.");
-  assert.ok(r.findings.some((f) => f.ruleId === "ing-analysis"));
+  assert.ok(r.findings.some((f) => f.ruleId === "ing-explainer"));
+});
+
+test("landscape cliche flagged as major, dive into as minor vocab", () => {
+  const r = analyze("We are navigating the evolving landscape of this space, ready to dive into the details.");
+  const cliche = r.findings.find((f) => f.ruleId === "landscape-cliche");
+  const dive = r.findings.find((f) => f.ruleId === "ai-vocabulary" && /dive into/i.test(f.message));
+  assert.ok(cliche && cliche.severity === "major", "landscape cliche should be major");
+  assert.ok(dive && dive.severity === "minor", "dive into should be minor ai-vocabulary");
 });
 
 test("throat-clearing, faux insight, colon reveal, recap ending", () => {
@@ -91,8 +99,8 @@ test("single vocab word is only minor, not damning", () => {
   assert.ok(r.verdict !== "slop", `one word should not certify slop, got ${r.score}`);
 });
 
-test("fancy-is flagged as minor", () => {
+test("inflated-verb flagged as minor", () => {
   const r = analyze("The app serves as a centralized hub for everything.");
-  const f = r.findings.find((x) => x.ruleId === "fancy-is");
+  const f = r.findings.find((x) => x.ruleId === "inflated-verb");
   assert.ok(f && f.severity === "minor");
 });
