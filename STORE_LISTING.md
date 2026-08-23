@@ -2,12 +2,15 @@
 
 ## Upload package
 
-`slop-detector-chrome-store-v1.0.0.zip` (contents of `extension/`, manifest at
-zip root). Rebuild after changes:
+Upload `dist/slop-detector-chrome-store-v1.0.1.zip`. It contains the committed
+`extension/` tree with `manifest.json` at the ZIP root. Build it from a clean
+working tree:
 
 ```bash
-cd extension && zip -qr ../slop-detector-chrome-store-v$VERSION.zip . -x "*.DS_Store"
+npm run package:chrome
 ```
+
+See [`docs/releasing.md`](docs/releasing.md) for versioning and release steps.
 
 ## Listing
 
@@ -26,11 +29,11 @@ Slop Detector lints prose for the telltale patterns of AI-generated writing —
 chatbot phrases ("I hope this message finds you well"), puffery ("marks a
 pivotal moment"), vague attribution ("experts believe"), binary contrasts
 ("It's not just X, it's Y"), em-dash density, uniform sentence rhythm, emoji
-bullets, and ~120 more patterns across 21 rule categories.
+bullets, and a larger catalog of recurring prose patterns.
 
 - Auto-scan: visible text on every page is linted automatically. Findings get
-  a yellow highlight + wavy red underline via the CSS Custom Highlight API —
-  the page's DOM is never modified, nothing is ever hidden or removed.
+  a wavy red underline via the CSS Custom Highlight API — the page's colors
+  and DOM are never modified, nothing is ever hidden or removed.
 - Hover any underline to see which rule triggered.
 - Popup checker: paste a draft, get highlighted findings and a verdict —
   READS HUMAN / SUSPICIOUS / CERTIFIED SLOP.

@@ -1,14 +1,52 @@
 {
-  "name": "slop-detector",
-  "version": "1.0.0",
-  "description": "Browser extension that lints prose for AI-slop patterns",
-  "private": true,
+  "name": "@ferdousbhai/slop-detector",
+  "version": "1.0.1",
+  "description": "Deterministic linting for AI-flavored prose in browsers, repositories, and agent output",
   "license": "MIT",
+  "type": "commonjs",
+  "bin": {
+    "slop-detector": "bin/slop-detector.js"
+  },
+  "exports": {
+    ".": "./extension/engine.js",
+    "./engine": "./extension/engine.js",
+    "./linter": "./lib/linter.js"
+  },
+  "files": [
+    "bin/",
+    "docs/",
+    "lib/",
+    "extension/engine.js",
+    "PRIVACY.md"
+  ],
+  "keywords": [
+    "ai",
+    "linter",
+    "prose",
+    "writing",
+    "agent"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ferdousbhai/slop-detector.git"
+  },
+  "homepage": "https://github.com/ferdousbhai/slop-detector#readme",
+  "bugs": {
+    "url": "https://github.com/ferdousbhai/slop-detector/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "engines": {
     "node": ">=20"
   },
   "scripts": {
-    "test": "node --test test.js test-scanner.js"
+    "check": "node --check bin/slop-detector.js && node --check lib/agent-hooks.js && node --check lib/install-hooks.js && node --check lib/linter.js && node --check lib/session-nudges.js && node --check extension/background.js && node --check extension/content.js && node --check extension/engine.js && node --check extension/popup.js && node --check extension/scanner.js && npm run check:versions",
+    "check:versions": "node scripts/check-versions.js",
+    "test": "node --test test.js test-scanner.js test-cli.js",
+    "verify:package": "node scripts/verify-package.js",
+    "package:chrome": "bash scripts/package-chrome.sh",
+    "package:npm": "npm run check:versions && node -e \"require('node:fs').mkdirSync('dist',{recursive:true})\" && npm pack --pack-destination dist"
   },
   "devDependencies": {
     "jsdom": "^30.0.1"

@@ -1,0 +1,73 @@
+name: Prepare release artifacts
+
+on:
+  push:
+    tags:
+      - "v[0-9]*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref_name }}
+
+jobs:
+  package:
+    name: Test, package, and draft release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out release tag
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check and test
+        run: |
+          npm run check
+          npm test
+          npm run verify:package
+
+      - name: Verify tag and distribution versions
+        run: npm run check:versions
+        env:
+          EXPECTED_TAG: ${{ github.ref_name }}
+
+      - name: Build Chrome Web Store package
+        run: npm run package:chrome
+        env:
+          EXPECTED_TAG: ${{ github.ref_name }}
+
+      - name: Build npm package
+        run: |
+          npm run package:npm
+          cd dist
+          sha256sum -- *.tgz > "$(ls *.tgz).sha256"
+
+      - name: Retain release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: slop-detector-${{ github.ref_name }}
+          path: dist/
+          if-no-files-found: error
+
+      - name: Create draft GitHub release
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            dist/* \
+            --draft \
+            --generate-notes \
+            --title "Slop Detector $GITHUB_REF_NAME" \
+            --verify-tag
+        env:
+          GH_TOKEN: ${{ github.token }}

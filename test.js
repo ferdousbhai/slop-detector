@@ -23,8 +23,10 @@ test("casual human text scores low", () => {
 test("em-dash density triggers only when dense", () => {
   const dense = "The plan — such as it is — needs work — real work — before Friday — honestly — it does.";
   const sparse = "The plan needs work before Friday. I think we should meet tomorrow and talk it through in person over coffee.";
+  const command = "Run npm test -- --watch, then use git log --oneline --all before opening the pull request.";
   assert.ok(analyze(dense).findings.some((f) => f.ruleId === "em-dash-density"));
   assert.ok(!analyze(sparse).findings.some((f) => f.ruleId === "em-dash-density"));
+  assert.ok(!analyze(command).findings.some((f) => f.ruleId === "em-dash-density"));
 });
 
 test("emoji bullets need at least two lines", () => {

@@ -1,0 +1,52 @@
+name: Publish npm package
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: npm-publish-${{ github.event.release.tag_name }}
+
+jobs:
+  publish:
+    name: Test and publish with npm trusted publishing
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: npm
+
+    steps:
+      - name: Check out release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install trusted-publishing-compatible npm
+        run: npm install --global npm@latest
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check and test
+        run: |
+          npm run check
+          npm test
+          npm run verify:package
+
+      - name: Verify release and package versions match
+        run: npm run check:versions
+        env:
+          EXPECTED_TAG: ${{ github.event.release.tag_name }}
+
+      - name: Publish through npm trusted publishing
+        run: npm publish

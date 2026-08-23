@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Slop Detector — marquee promo</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { width: 1400px; height: 560px; margin: 0; overflow: hidden; }
+  body {
+    border: 10px solid #23241F; background: #F6F4EE; color: #23241F;
+    font-family: "Courier New", monospace;
+  }
+  .brand { position: absolute; left: 120px; top: 91px; display: flex; align-items: center; gap: 28px; }
+  .brand img { width: 82px; height: 90px; object-fit: contain; }
+  h1 { margin: 0; font-size: 60px; line-height: 1.18; letter-spacing: .12em; }
+  .tagline { position: absolute; left: 120px; top: 271px; margin: 0; color: #55564F; font-size: 27px; line-height: 1.15; letter-spacing: .05em; }
+  .sample { position: absolute; left: 120px; top: 363px; margin: 0; font-size: 30px; line-height: 1.7; }
+  .mark { text-decoration: underline wavy #C42B1F 2px; text-underline-offset: 5px; }
+  .stamp {
+    position: absolute; right: 118px; top: 228px; padding: 21px 34px 17px;
+    border: 5px double #C42B1F; color: #C42B1F; transform: rotate(-5deg);
+    font-weight: 700; font-size: 42px; line-height: 1; letter-spacing: .1em;
+  }
+</style>
+</head>
+<body>
+  <div class="brand"><img src="../icon-master.png" alt=""><h1>SLOP<br>DETECTOR</h1></div>
+  <p class="tagline">red-pen linting for AI-flavored<br>writing</p>
+  <p class="sample">it <span class="mark">delves</span> into a <span class="mark">rich tapestry</span><br>that <span class="mark">marks a pivotal moment</span></p>
+  <div class="stamp">CERTIFIED SLOP</div>
+</body>
+</html>

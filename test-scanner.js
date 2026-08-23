@@ -1,7 +1,10 @@
 const test = require("node:test");
 const assert = require("node:assert");
 const fs = require("node:fs");
+const path = require("node:path");
 const { JSDOM } = require("jsdom");
+
+const extensionFile = (name) => path.join(__dirname, "extension", name);
 
 const SLOP_P = `I hope this message finds you well. This launch marks a pivotal moment, showcasing our robust and transformative vision for the evolving landscape. Let me know if you have any questions.`;
 const HUMAN_P = `We met at the coffee shop around nine and argued about the playoffs for an hour. Nobody changed their mind but the pastries were worth the trip anyway.`;
@@ -18,8 +21,10 @@ function boot(html, { autoScanPages = true } = {}) {
   w.Highlight = class {
     constructor() { this.ranges = new Set(); }
     add(r) { this.ranges.add(r); }
+    delete(r) { this.ranges.delete(r); }
   };
   w.CSS = { highlights: new Map() };
+  w.Range.prototype.getBoundingClientRect = () => ({ left: 0, right: 20, top: 20, bottom: 36, width: 20, height: 16 });
 
   // --- stub chrome.storage ---
   const listeners = [];
@@ -39,8 +44,8 @@ function boot(html, { autoScanPages = true } = {}) {
     runtime: { onMessage: { addListener: () => {} } },
   };
 
-  w.eval(fs.readFileSync("extension/engine.js", "utf8"));
-  w.eval(fs.readFileSync("extension/scanner.js", "utf8"));
+  w.eval(fs.readFileSync(extensionFile("engine.js"), "utf8"));
+  w.eval(fs.readFileSync(extensionFile("scanner.js"), "utf8"));
   return { dom, w, set: (k, v) => w.chrome.storage.sync.set({ [k]: v }) };
 }
 
@@ -61,6 +66,17 @@ test("slop paragraph gets underline ranges on the exact phrases", async () => {
   assert.ok(texts.some((t) => /pivotal moment/i.test(t)), "puffery should be marked");
   // No range should come from the human paragraph
   assert.ok(!texts.some((t) => /coffee shop|playoffs|pastries/i.test(t)), "human text must be untouched");
+});
+
+test("page highlights underline findings without changing page colors", async () => {
+  const { w } = boot(`<p style="color: #ddd">This launch marks a pivotal moment.</p>`);
+  await tick();
+
+  const style = w.document.getElementById("slop-detector-highlight-style");
+  assert.ok(style, "highlight styles should be installed");
+  assert.match(style.textContent, /text-decoration:underline wavy #C42B1F 1\.5px/);
+  assert.doesNotMatch(style.textContent, /background-color:/);
+  assert.doesNotMatch(style.textContent, /(?:^|[;{])color:/);
 });
 
 test("badge appears with the finding count", async () => {
@@ -115,6 +131,21 @@ test("dynamically inserted slop is caught by the observer", async () => {
   w.document.getElementById("feed").insertAdjacentHTML("beforeend", `<p>${SLOP_P}</p>`);
   await tick();
   assert.ok(highlightedTexts(w).some((t) => /pivotal moment/i.test(t)));
+});
+
+test("text edits replace stale highlights and update the badge", async () => {
+  const { w } = boot(`<p id="draft">${SLOP_P}</p>`);
+  await tick();
+  assert.ok(highlightedTexts(w).length > 0);
+
+  w.document.getElementById("draft").firstChild.nodeValue = HUMAN_P;
+  await tick();
+  assert.strictEqual(highlightedTexts(w).length, 0);
+  assert.strictEqual(w.document.querySelector(".slop-detector-badge-host"), null);
+
+  w.document.getElementById("draft").firstChild.nodeValue = SLOP_P;
+  await tick();
+  assert.ok(highlightedTexts(w).some((text) => /pivotal moment/i.test(text)));
 });
 
 test("toggle off clears highlights and badge", async () => {

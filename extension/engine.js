@@ -194,7 +194,7 @@
       run(text) {
         const w = words(text).length;
         if (w < 15) return [];
-        const dashes = findAll(text, /\u2014|--/g, (m) => ({ start: m.index, end: m.index + m[0].length }));
+        const dashes = findAll(text, /\u2014/g, (m) => ({ start: m.index, end: m.index + m[0].length }));
         const per100 = (dashes.length / w) * 100;
         if (per100 < 2.5) return [];
         return dashes.map((d) => ({

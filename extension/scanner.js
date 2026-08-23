@@ -28,7 +28,7 @@
   // ---------- block discovery ----------
 
   function blockOf(node) {
-    let el = node.parentElement;
+    let el = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
     while (el && !BLOCK_TAGS.has(el.tagName)) el = el.parentElement;
     return el;
   }
@@ -59,7 +59,6 @@
   // ---------- underline linting ----------
 
   function lintBlock(block, textNodes) {
-    processedBlocks.add(block);
     if (!scanEnabled || !highlightSupported) return 0;
     let text = "";
     const offsets = [];
@@ -67,7 +66,11 @@
       offsets.push({ node, start: text.length, end: text.length + node.nodeValue.length });
       text += node.nodeValue;
     }
-    if (text.trim().split(/\s+/).length < MIN_WORDS) return 0;
+    if (text.trim().split(/\s+/).length < MIN_WORDS) {
+      processedBlocks.add(block);
+      return 0;
+    }
+    processedBlocks.add(block);
 
     const result = globalThis.SlopEngine.analyze(text);
     let added = 0;
@@ -81,6 +84,7 @@
         range.setStart(startEntry.node, f.start - startEntry.start);
         range.setEnd(endEntry.node, f.end - endEntry.start);
         range.slopRule = f.ruleId;
+        range.slopBlock = block;
         highlight.add(range);
         allRanges.push(range);
         added++;
@@ -95,7 +99,17 @@
     for (const [block, nodes] of collectBlocks(root instanceof Element ? root : document.body)) {
       added += lintBlock(block, nodes);
     }
-    if (added > 0) updateBadge();
+    if (added > 0 || badge) updateBadge();
+  }
+
+  function invalidateBlock(block) {
+    if (!block) return;
+    processedBlocks.delete(block);
+    allRanges = allRanges.filter((range) => {
+      if (range.slopBlock !== block) return true;
+      highlight?.delete(range);
+      return false;
+    });
   }
 
   // ---------- badge ----------
@@ -103,7 +117,16 @@
   function updateBadge() {
     // Drop ranges whose text was removed from the DOM so the count and
     // cycling stay accurate on long-lived pages.
-    allRanges = allRanges.filter((r) => r.startContainer.isConnected);
+    allRanges = allRanges.filter((range) => {
+      if (range.startContainer.isConnected) return true;
+      highlight?.delete(range);
+      return false;
+    });
+    if (allRanges.length === 0) {
+      badge?.remove();
+      badge = null;
+      return;
+    }
     if (!badge) {
       badge = document.createElement("div");
       badge.className = "slop-detector-badge-host";
@@ -213,7 +236,8 @@
   function ensureObserver() {
     if (observer) return;
     let pending = false;
-    observer = new MutationObserver(() => {
+    observer = new MutationObserver((records) => {
+      for (const record of records) invalidateBlock(blockOf(record.target));
       if (pending) return;
       pending = true;
       requestAnimationFrame(() => {
@@ -221,7 +245,7 @@
         scan(document.body);
       });
     });
-    observer.observe(document.body, { childList: true, subtree: true });
+    observer.observe(document.body, { childList: true, characterData: true, subtree: true });
   }
 
   function startScan() {
@@ -234,7 +258,7 @@
       const style = document.createElement("style");
       style.id = "slop-detector-highlight-style";
       style.textContent =
-        "::highlight(slop-mark){background-color:rgba(249,226,125,.85);color:inherit;text-decoration:underline wavy #C42B1F 1.5px;}";
+        "::highlight(slop-mark){text-decoration:underline wavy #C42B1F 1.5px;}";
       document.documentElement.appendChild(style);
     }
   }
