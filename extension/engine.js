@@ -8,6 +8,29 @@
   "use strict";
 
   const SEV = { MINOR: "minor", MAJOR: "major" };
+  const INSTRUCTIONS = Object.freeze({
+    "ai-vocabulary": "Use plain, specific wording.",
+    "binary-contrast": "State the positive claim directly.",
+    "chatbot-phrase": "Remove canned assistant phrasing.",
+    "colon-reveal": "Remove the staged reveal.",
+    "dramatic-fragment": "Rewrite as a direct sentence.",
+    "em-dash-density": "Use no em dashes.",
+    "emoji-bullets": "Use plain list bullets.",
+    "essay-connective": "Remove formal transition filler.",
+    "faux-insight": "State the point directly.",
+    "filler-phrase": "Delete or shorten the filler.",
+    "hedging-ratio": "Keep only necessary uncertainty.",
+    "inflated-verb": "Use a plain verb.",
+    "ing-explainer": "Delete the trailing explanation or state a concrete fact.",
+    "landscape-cliche": "Replace the cliche with a concrete description.",
+    "puffery": "State the fact without hype.",
+    "recap-ending": "Remove the unnecessary recap.",
+    "rhetorical-setup": "State the point directly.",
+    "throat-clearing": "Start with the substantive point.",
+    "triad-adjectives": "Use only necessary modifiers.",
+    "uniform-sentences": "Vary sentence lengths.",
+    "vague-attribution": "Name the source or remove the attribution.",
+  });
 
   // ---------- helpers ----------
 
@@ -270,6 +293,9 @@
   function analyze(text) {
     const findings = [];
     for (const rule of rules) findings.push(...rule.run(text));
+    for (const finding of findings) {
+      finding.instruction = INSTRUCTIONS[finding.ruleId] ?? "Remove the flagged pattern.";
+    }
     findings.sort((a, b) => a.start - b.start);
 
     const wc = words(text).length;

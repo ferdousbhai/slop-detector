@@ -16,11 +16,11 @@ Node executable used during installation.
 
 | Agent | User destination | Project destination | Events |
 | --- | --- | --- | --- |
-| Claude Code | `~/.claude/settings.json` | `.claude/settings.json` | `Stop`, `UserPromptSubmit` |
-| Codex CLI | `~/.codex/hooks.json` and `~/.codex/config.toml` | `.codex/hooks.json` and `.codex/config.toml` | `Stop`, `UserPromptSubmit` |
+| Claude Code | `~/.claude/settings.json` | `.claude/settings.json` | `Stop` |
+| Codex CLI | `~/.codex/hooks.json` and `~/.codex/config.toml` | `.codex/hooks.json` and `.codex/config.toml` | `Stop` |
 | Gemini CLI | `~/.gemini/settings.json` | `.gemini/settings.json` | `AfterAgent` |
 | OMP | `$PI_CODING_AGENT_DIR/extensions/slop-detector.ts` or `~/.omp/agent/extensions/slop-detector.ts` | `.omp/extensions/slop-detector.ts` | `session_stop`, `before_agent_start` |
-| Ghost | `$XDG_CONFIG_HOME/ghost/hooks.json` | not supported | `session_stop`, `before_prompt` |
+| Ghost | `$XDG_CONFIG_HOME/ghost/hooks.json` | not supported | `session_stop` |
 
 User scope is the default. Project scope selects Claude, Codex, Gemini, and OMP
 when `--agents` is omitted. Ghost is user-scoped because imported Ghost homes
@@ -44,7 +44,8 @@ JSON.
 
 - A clean answer is accepted with `{}`.
 - Warnings are reported without blocking.
-- Errors return model-visible revision feedback.
+- Errors return compact, model-visible revision feedback with one explicit
+  instruction per rule.
 - A failed revision stops after one retry. The hook never starts an unbounded
   revision loop.
 
@@ -52,10 +53,13 @@ Detection performs no model or network call. A blocking result asks the current
 agent session to continue, so that runtime decides model selection, context,
 prompt caching, and token accounting.
 
-## Warning nudges
+## Warning handling
 
-Warnings should influence later answers without rewriting the current one. The
-Stop or `session_stop` hook therefore stores a compact advisory under:
+Claude, Codex, and Ghost report warnings at Stop but do not store or inject them
+into a later prompt. This keeps clean user turns free of Slop Detector context.
+
+OMP can carry warnings into the next turn. Its `session_stop` hook stores a
+compact advisory under:
 
 ```text
 $XDG_STATE_HOME/slop-detector/session-nudges/
@@ -67,9 +71,7 @@ rule guidance. They do not contain the assistant response or matched spans.
 
 On the next user prompt:
 
-- Claude and Codex return `UserPromptSubmit.hookSpecificOutput.additionalContext`;
-- OMP returns a non-displayed custom message from `before_agent_start`; and
-- Ghost returns `additionalContext` from `before_prompt`.
+- OMP returns a non-displayed custom message from `before_agent_start`.
 
 The state file is atomically claimed and consumed once. Entries older than
 seven days are ignored, and stale files are pruned periodically. Advisory-state
@@ -113,9 +115,11 @@ payload on stdin:
 slop-detector hook <runner>
 ```
 
-Stop runners are `claude`, `codex`, `gemini`, `ghost`, and `omp`. Prompt runners
-are `claude-prompt`, `codex-prompt`, `ghost-prompt`, and `omp-prompt`. These names
-are adapter internals rather than a public JavaScript API.
+Stop runners are `claude`, `codex`, `gemini`, `ghost`, and `omp`. Installed
+prompt runners use `omp-prompt`. The `claude-prompt`, `codex-prompt`, and
+`ghost-prompt` adapters remain only to consume stale state from older
+installations; new installs remove their owned prompt hooks. These names are
+adapter internals rather than a public JavaScript API.
 
 Hook input is capped at 1 MB. Invalid input returns exit code 2. OMP's generated
 adapter also caps output at 2 MB and terminates a CLI subprocess after ten

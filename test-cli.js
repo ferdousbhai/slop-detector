@@ -20,6 +20,8 @@ function tempDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), "slop-detector-"));
 }
 
+process.env.XDG_CONFIG_HOME = path.join(tempDir(), "config");
+
 test("lintText returns linter-style locations and rule levels", () => {
   const text = "Normal first line.\nGreat question! Let us delve into this.";
   const diagnostics = lintText(text, { filename: "draft.md" });
@@ -30,6 +32,7 @@ test("lintText returns linter-style locations and rule levels", () => {
     { line: chatbot.line, column: chatbot.column, level: chatbot.level, text: chatbot.text },
     { line: 2, column: 1, level: "error", text: "Great question" },
   );
+  assert.equal(chatbot.instruction, "Remove canned assistant phrasing.");
   assert.equal(vocabulary.level, "warning");
   assert.equal(vocabulary.text, "delve");
 });
@@ -153,12 +156,22 @@ test("install-hooks configures every project-scoped agent and is idempotent", ()
     theme: "dark",
     hooks: {
       UserPromptSubmit: [{
-        hooks: [{ type: "command", command: "slop-detector hook claude-prompt-extra" }],
+        hooks: [
+          { type: "command", command: "slop-detector hook claude-prompt-extra" },
+          { type: "command", command: "slop-detector hook claude-prompt" },
+        ],
       }],
     },
   }, null, 2)}\n`);
   fs.mkdirSync(path.join(directory, ".codex"), { recursive: true });
   fs.writeFileSync(path.join(directory, ".codex", "config.toml"), "model = \"test\"\n\n[features] # toggles\nhooks = false\n");
+  fs.writeFileSync(path.join(directory, ".codex", "hooks.json"), `${JSON.stringify({
+    hooks: {
+      UserPromptSubmit: [{
+        hooks: [{ type: "command", command: "slop-detector hook codex-prompt" }],
+      }],
+    },
+  }, null, 2)}\n`);
 
   const args = [cli, "install-hooks", "--scope=project", "--agents=claude,codex,gemini,omp", "--format=json"];
   const first = spawnSync(process.execPath, args, { cwd: directory, encoding: "utf8" });
@@ -174,14 +187,16 @@ test("install-hooks configures every project-scoped agent and is idempotent", ()
     "dark",
   );
   assert.match(claude.hooks.Stop[0].hooks[0].command, /slop-detector\.js.*hook.*claude/);
-  assert.match(claude.hooks.UserPromptSubmit[0].hooks[0].command, /hook.*claude-prompt/);
+  assert.equal(claude.hooks.UserPromptSubmit.length, 1);
+  assert.equal(claude.hooks.UserPromptSubmit[0].hooks.length, 1);
+  assert.match(claude.hooks.UserPromptSubmit[0].hooks[0].command, /claude-prompt-extra/);
   const codexConfig = fs.readFileSync(path.join(directory, ".codex", "config.toml"), "utf8");
   assert.match(codexConfig, /\[features\] # toggles/);
   assert.equal((codexConfig.match(/^\[features\]/gm) ?? []).length, 1);
   assert.match(codexConfig, /hooks = true/);
   const codexHooks = JSON.parse(fs.readFileSync(path.join(directory, ".codex", "hooks.json"), "utf8")).hooks;
   assert.ok(codexHooks.Stop);
-  assert.match(codexHooks.UserPromptSubmit[0].hooks[0].command, /hook.*codex-prompt/);
+  assert.equal(codexHooks.UserPromptSubmit, undefined);
   assert.ok(JSON.parse(fs.readFileSync(path.join(directory, ".gemini", "settings.json"), "utf8")).hooks.AfterAgent);
   const omp = fs.readFileSync(path.join(directory, ".omp", "extensions", "slop-detector.ts"), "utf8");
   assert.match(omp, /pi\.on\("session_stop"/);
@@ -192,7 +207,7 @@ test("install-hooks configures every project-scoped agent and is idempotent", ()
   assert.ok(JSON.parse(second.stdout).results.every((item) => !item.changed));
   const reinstalledClaude = JSON.parse(fs.readFileSync(path.join(directory, ".claude", "settings.json"), "utf8"));
   assert.equal(reinstalledClaude.hooks.Stop.length, 1);
-  assert.equal(reinstalledClaude.hooks.UserPromptSubmit.length, 2);
+  assert.equal(reinstalledClaude.hooks.UserPromptSubmit.length, 1);
   assert.match(reinstalledClaude.hooks.UserPromptSubmit[0].hooks[0].command, /prompt-extra/);
 });
 
@@ -256,6 +271,15 @@ test("install-hooks refuses to overwrite a non-owned OMP extension", () => {
 test("install-hooks configures Ghost's trusted user hook file", () => {
   const directory = tempDir();
   const configHome = path.join(directory, "config");
+  const ghostConfig = path.join(configHome, "ghost", "hooks.json");
+  fs.mkdirSync(path.dirname(ghostConfig), { recursive: true });
+  fs.writeFileSync(ghostConfig, `${JSON.stringify({
+    hooks: {
+      before_prompt: [{
+        hooks: [{ type: "command", command: "slop-detector hook ghost-prompt" }],
+      }],
+    },
+  }, null, 2)}\n`);
   const result = spawnSync(process.execPath, [cli, "install-hooks", "--scope=user", "--agents=ghost", "--format=json"], {
     encoding: "utf8",
     env: { ...process.env, HOME: directory, XDG_CONFIG_HOME: configHome },
@@ -265,7 +289,7 @@ test("install-hooks configures Ghost's trusted user hook file", () => {
   const command = config.hooks.session_stop[0].hooks[0].command;
   assert.match(command, /hook.*ghost/);
   assert.doesNotMatch(command, /--max-warnings/);
-  assert.match(config.hooks.before_prompt[0].hooks[0].command, /hook.*ghost-prompt/);
+  assert.equal(config.hooks.before_prompt, undefined);
 });
 
 test("install-hooks validates every destination before writing any", () => {
@@ -303,8 +327,9 @@ test("agent mode emits deterministic JSON revision feedback and fails on errors"
   const output = JSON.parse(result.stdout);
   assert.equal(output.ok, false);
   assert.ok(output.summary.errors >= 1);
-  assert.match(output.revisionFeedback, /Great question/);
-  assert.match(output.revisionFeedback, /Return only the revised output/);
+  assert.match(output.revisionFeedback, /Remove canned assistant phrasing/);
+  assert.doesNotMatch(output.revisionFeedback, /Great question/);
+  assert.match(output.revisionFeedback, /Return only the revision/);
 });
 
 test("agent mode passes clean output without requesting a model revision", () => {
@@ -348,7 +373,7 @@ test("Claude and Codex stop hooks block slop with model-visible feedback", () =>
     assert.equal(result.status, 0, result.stderr);
     const output = JSON.parse(result.stdout);
     assert.equal(output.decision, "block");
-    assert.match(output.reason, /Great question/);
+    assert.match(output.reason, /Remove canned assistant phrasing/);
   }
 });
 
@@ -363,7 +388,7 @@ test("Gemini AfterAgent hook denies slop and requests a retry", () => {
   assert.equal(result.status, 0, result.stderr);
   const output = JSON.parse(result.stdout);
   assert.equal(output.decision, "deny");
-  assert.match(output.reason, /I hope this message finds you well/);
+  assert.match(output.reason, /Remove canned assistant phrasing/);
 });
 
 test("agent hooks stop instead of looping after a failed revision", () => {
@@ -377,10 +402,10 @@ test("agent hooks stop instead of looping after a failed revision", () => {
   assert.equal(result.status, 0, result.stderr);
   const output = JSON.parse(result.stdout);
   assert.equal(output.continue, false);
-  assert.match(output.stopReason, /Great question/);
+  assert.match(output.stopReason, /Remove canned assistant phrasing/);
 });
 
-test("Ghost hook reads structured assistant messages and makes warnings model-visible", () => {
+test("Ghost hook reads structured assistant messages and returns compact feedback", () => {
   const result = spawnSync(process.execPath, [cli, "hook", "ghost", "--max-warnings=0"], {
     input: JSON.stringify({
       last_assistant_message: {
@@ -394,7 +419,8 @@ test("Ghost hook reads structured assistant messages and makes warnings model-vi
   assert.equal(result.status, 0, result.stderr);
   const output = JSON.parse(result.stdout);
   assert.equal(output.decision, "block");
-  assert.match(output.reason, /robust/);
+  assert.match(output.reason, /Use plain, specific wording/);
+  assert.doesNotMatch(output.reason, /robust/);
 });
 
 test("agent hooks group repeated warning notifications", () => {
@@ -424,53 +450,11 @@ test("prompt hooks fail open without loading lint configuration", () => {
   assert.deepEqual(JSON.parse(result.stdout), {});
 });
 
-test("warning nudges are delivered once on the next prompt in the same session", () => {
-  const directory = tempDir();
-  const env = { ...process.env, XDG_STATE_HOME: directory };
-  const warning = spawnSync(process.execPath, [cli, "hook", "claude"], {
-    input: JSON.stringify({
-      session_id: "session-a",
-      last_assistant_message: "The new build feels robust enough for a quick test today.",
-      stop_hook_active: false,
-    }),
-    encoding: "utf8",
-    env,
-  });
-  assert.equal(warning.status, 0, warning.stderr);
-  assert.match(JSON.parse(warning.stdout).systemMessage, /ai-vocabulary/);
-
-  const otherSession = spawnSync(process.execPath, [cli, "hook", "claude-prompt"], {
-    input: JSON.stringify({ session_id: "session-b", prompt: "Continue" }),
-    encoding: "utf8",
-    env,
-  });
-  assert.deepEqual(JSON.parse(otherSession.stdout), {});
-
-  const nextPrompt = spawnSync(process.execPath, [cli, "hook", "claude-prompt"], {
-    input: JSON.stringify({ session_id: "session-a", prompt: "Continue" }),
-    encoding: "utf8",
-    env,
-  });
-  assert.equal(nextPrompt.status, 0, nextPrompt.stderr);
-  const context = JSON.parse(nextPrompt.stdout).hookSpecificOutput;
-  assert.equal(context.hookEventName, "UserPromptSubmit");
-  assert.match(context.additionalContext, /previous reply/);
-  assert.match(context.additionalContext, /ai-vocabulary \(1 warning\)/);
-  assert.doesNotMatch(context.additionalContext, /robust/);
-
-  const consumed = spawnSync(process.execPath, [cli, "hook", "claude-prompt"], {
-    input: JSON.stringify({ session_id: "session-a", prompt: "Continue again" }),
-    encoding: "utf8",
-    env,
-  });
-  assert.deepEqual(JSON.parse(consumed.stdout), {});
-});
-
-test("Ghost and OMP prompt hooks use direct additionalContext", () => {
-  for (const runner of ["ghost", "omp"]) {
+test("Claude, Codex, and Ghost warnings do not create next-prompt context", () => {
+  for (const runner of ["claude", "codex", "ghost"]) {
     const directory = tempDir();
     const env = { ...process.env, XDG_STATE_HOME: directory };
-    spawnSync(process.execPath, [cli, "hook", runner], {
+    const warning = spawnSync(process.execPath, [cli, "hook", runner], {
       input: JSON.stringify({
         session_id: `${runner}-session`,
         last_assistant_message: "The new build feels robust enough for a quick test today.",
@@ -479,13 +463,37 @@ test("Ghost and OMP prompt hooks use direct additionalContext", () => {
       encoding: "utf8",
       env,
     });
-    const result = spawnSync(process.execPath, [cli, "hook", `${runner}-prompt`], {
+    assert.equal(warning.status, 0, warning.stderr);
+    assert.match(JSON.parse(warning.stdout).systemMessage, /ai-vocabulary/);
+
+    const nextPrompt = spawnSync(process.execPath, [cli, "hook", `${runner}-prompt`], {
       input: JSON.stringify({ session_id: `${runner}-session`, prompt: "Continue" }),
       encoding: "utf8",
       env,
     });
-    assert.match(JSON.parse(result.stdout).additionalContext, /ai-vocabulary/);
+    assert.equal(nextPrompt.status, 0, nextPrompt.stderr);
+    assert.deepEqual(JSON.parse(nextPrompt.stdout), {});
   }
+});
+
+test("OMP prompt hooks use direct additionalContext", () => {
+  const directory = tempDir();
+  const env = { ...process.env, XDG_STATE_HOME: directory };
+  spawnSync(process.execPath, [cli, "hook", "omp"], {
+    input: JSON.stringify({
+      session_id: "omp-session",
+      last_assistant_message: "The new build feels robust enough for a quick test today.",
+      stop_hook_active: false,
+    }),
+    encoding: "utf8",
+    env,
+  });
+  const result = spawnSync(process.execPath, [cli, "hook", "omp-prompt"], {
+    input: JSON.stringify({ session_id: "omp-session", prompt: "Continue" }),
+    encoding: "utf8",
+    env,
+  });
+  assert.equal(JSON.parse(result.stdout).additionalContext, "Style: Use plain, specific wording.");
 });
 
 test("agent hooks report warning spans without forcing a revision", () => {
@@ -518,9 +526,12 @@ test("revision feedback includes only supplied violations", () => {
   const feedback = revisionFeedback([{
     level: "error",
     ruleId: "chatbot-phrase",
+    instruction: "Remove canned assistant phrasing.",
     text: "Great question",
     message: "Canonical assistant phrasing.",
   }]);
-  assert.match(feedback, /chatbot-phrase/);
-  assert.match(feedback, /"Great question"/);
+  assert.equal(
+    feedback,
+    "Revise style only. Remove canned assistant phrasing. Preserve meaning and required facts. Return only the revision.",
+  );
 });

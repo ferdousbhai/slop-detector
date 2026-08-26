@@ -71,8 +71,8 @@ printf '%s' "$AGENT_OUTPUT" | slop-detector agent
 printf '%s' "$AGENT_OUTPUT" | slop-detector agent --format=json
 ```
 
-JSON output includes diagnostics, counts, deterministic revision feedback, and
-a warning nudge suitable for model context.
+JSON output includes diagnostics, counts, compact deterministic revision
+feedback, and a warning nudge for runtimes that support one-time guidance.
 
 ## Agent hooks
 
@@ -95,18 +95,19 @@ Project scope installs the four project-capable integrations by default:
 slop-detector install-hooks --scope=project
 ```
 
-| Agent | Final-output gate | Next-prompt warning context | Scope |
+| Agent | Final-output gate | Warning context | Scope |
 | --- | --- | --- | --- |
-| Claude Code | `Stop` | `UserPromptSubmit` | user or project |
-| Codex CLI | `Stop` | `UserPromptSubmit` | user or project |
+| Claude Code | `Stop` | none | user or project |
+| Codex CLI | `Stop` | none | user or project |
 | Gemini CLI | `AfterAgent` | not available | user or project |
 | OMP | `session_stop` | `before_agent_start` | user or project |
-| Ghost | `session_stop` | `before_prompt` | user only |
+| Ghost | `session_stop` | none | user only |
 
 Errors can request one revision. Warnings never block and never cause an extra
-model call. Claude, Codex, OMP, and Ghost save a short advisory by session ID,
-then inject it on the next user-initiated turn. The state contains rule IDs,
-counts, and static guidance, not the response text.
+model call. Claude, Codex, and Ghost report warnings only at Stop, so clean turns
+add no Slop Detector context. OMP saves compact, rule-specific guidance by
+session ID and consumes it on the next user-initiated turn. The state contains
+rule IDs, counts, and static guidance, not the response text.
 
 The installer merges existing settings, writes a one-time
 `.slop-detector.bak`, preflights every requested configuration before writing,

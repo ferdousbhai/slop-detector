@@ -41,9 +41,9 @@ protocol.
 ### Agent hooks
 
 `lib/agent-hooks.js` translates diagnostics to native agent results. It owns
-assistant-message extraction, warning presentation, retry limits, and
-next-prompt advisory output. `lib/session-nudges.js` owns the small amount of
-session state.
+assistant-message extraction, compact revision feedback, warning presentation,
+retry limits, and OMP next-prompt advisory output.
+`lib/session-nudges.js` owns that small amount of session state.
 
 `lib/install-hooks.js` only merges configuration and generates OMP's thin
 adapter. Hook commands re-enter the installed CLI, so every runtime uses the
