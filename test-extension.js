@@ -10,6 +10,13 @@ const { JSDOM } = require("jsdom");
 const extensionFile = (name) => path.join(__dirname, "extension", name);
 const tick = () => new Promise((resolve) => setImmediate(resolve));
 
+function pngDimensions(filename) {
+  const png = fs.readFileSync(filename);
+  assert.equal(png.toString("ascii", 1, 4), "PNG", `${filename} is not a PNG`);
+  assert.equal(png.toString("ascii", 12, 16), "IHDR", `${filename} has no IHDR chunk`);
+  return [png.readUInt32BE(16), png.readUInt32BE(20)];
+}
+
 function event() {
   const listeners = [];
   return {
@@ -26,6 +33,17 @@ test("page content scripts are DOM-mutation-free", () => {
 
   const source = scripts.map((filename) => fs.readFileSync(extensionFile(filename), "utf8")).join("\n");
   assert.doesNotMatch(source, /document\.createElement|\.appendChild\(|\.insertAdjacentHTML\(|\.replaceChildren\(|\.innerHTML\s*=/);
+});
+
+test("extension and Store icons have their declared pixel sizes", () => {
+  const manifest = JSON.parse(fs.readFileSync(extensionFile("manifest.json"), "utf8"));
+  for (const [size, filename] of Object.entries(manifest.icons)) {
+    assert.deepEqual(pngDimensions(extensionFile(filename)), [Number(size), Number(size)]);
+  }
+  assert.deepEqual(
+    pngDimensions(path.join(__dirname, "store-assets", "icon-128.png")),
+    [128, 128],
+  );
 });
 
 test("background maps scanner counts to tab-scoped action state", async () => {

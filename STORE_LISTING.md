@@ -58,6 +58,7 @@ runs locally. Open source: https://github.com/ferdousbhai/slop-detector
 
 ## Store assets
 
+- `store-assets/icon-128.png` — 128×128 Store listing icon.
 - `store-assets/screenshot-popup-certified-slop.png` — 1280×800 screenshot.
 - `store-assets/screenshot-page-underlines.png` — 1280×800 screenshot.
 - `store-assets/promo-small-440x280.png` — small promo tile.
