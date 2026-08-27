@@ -1,7 +1,8 @@
 {
   "name": "@ferdousbhai/slop-detector",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Deterministic linting for AI-flavored prose in browsers, repositories, and agent output",
+  "packageManager": "npm@12.0.2",
   "license": "MIT",
   "type": "commonjs",
   "bin": {
@@ -38,7 +39,8 @@
     "access": "public"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=26",
+    "npm": ">=12"
   },
   "scripts": {
     "check": "node --check bin/slop-detector.js && node --check lib/linter.js && node --check extension/background.js && node --check extension/engine.js && node --check extension/popup.js && node --check extension/scanner.js && npm run check:versions",
@@ -49,6 +51,6 @@
     "package:npm": "npm run check:versions && node -e \"require('node:fs').mkdirSync('dist',{recursive:true})\" && npm pack --pack-destination dist"
   },
   "devDependencies": {
-    "jsdom": "^28.1.0"
+    "jsdom": "^30.0.1"
   }
 }

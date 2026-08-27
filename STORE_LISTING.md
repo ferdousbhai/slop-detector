@@ -2,7 +2,7 @@
 
 ## Upload package
 
-Upload `dist/slop-detector-chrome-store-v1.1.0.zip`. It contains the committed
+Upload `dist/slop-detector-chrome-store-v1.1.1.zip`. It contains the committed
 `extension/` tree with `manifest.json` at the ZIP root. Build it from a clean
 working tree:
 

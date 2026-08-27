@@ -27,9 +27,17 @@ function requireStatus(result, expected, label) {
 }
 
 try {
+  const npmVersion = run(npm, ["--version"]);
+  requireStatus(npmVersion, 0, "npm --version");
+  if (Number.parseInt(npmVersion.stdout, 10) < 12) {
+    throw new Error(`npm 12 or newer is required, found ${npmVersion.stdout.trim()}`);
+  }
   const packed = run(npm, ["pack", "--json", "--pack-destination", temporary]);
   requireStatus(packed, 0, "npm pack");
-  const [packageManifest] = JSON.parse(packed.stdout);
+  const packOutput = JSON.parse(packed.stdout);
+  const packageName = require(path.join(root, "package.json")).name;
+  const packageManifest = packOutput[packageName];
+  if (!packageManifest) throw new Error(`npm pack omitted metadata for ${packageName}`);
   const { filename } = packageManifest;
   const included = new Set(packageManifest.files.map((file) => file.path));
   for (const required of [

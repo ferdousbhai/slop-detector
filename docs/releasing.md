@@ -17,10 +17,9 @@ upload remains manual.
 3. Create the protected `npm` environment in GitHub and add the desired reviewer
    policy.
 
-The publishing job uses `contents: read` and `id-token: write`. It installs a
-current npm CLI because trusted publishing requires npm 11.5.1 or newer and
-Node 22.14.0 or newer. Trusted publishing adds provenance automatically for a
-public package from a public repository.
+The publishing job uses `contents: read` and `id-token: write`. It runs on Node
+26 and installs the latest npm CLI. Trusted publishing adds provenance
+automatically for a public package from a public repository.
 
 ## Prepare a version
 
@@ -49,18 +48,18 @@ Chrome packaging script refuses a dirty tree and archives the committed
 Create and push an annotated tag:
 
 ```bash
-git tag -a v1.1.0 -m "Slop Detector v1.1.0"
-git push origin v1.1.0
+git tag -a v1.1.1 -m "Slop Detector v1.1.1"
+git push origin v1.1.1
 ```
 
 `.github/workflows/release.yml` checks the tag against both versions, runs the
 suite, and creates these artifacts in `dist/`:
 
 ```text
-slop-detector-chrome-store-v1.1.0.zip
-slop-detector-chrome-store-v1.1.0.zip.sha256
-ferdousbhai-slop-detector-1.1.0.tgz
-ferdousbhai-slop-detector-1.1.0.tgz.sha256
+slop-detector-chrome-store-v1.1.1.zip
+slop-detector-chrome-store-v1.1.1.zip.sha256
+ferdousbhai-slop-detector-1.1.1.tgz
+ferdousbhai-slop-detector-1.1.1.tgz.sha256
 ```
 
 The workflow uploads the directory as a workflow artifact and attaches each
@@ -85,12 +84,12 @@ After completion, verify:
 
 ```bash
 npm view @ferdousbhai/slop-detector version dist.attestations
-npm exec --yes @ferdousbhai/slop-detector@1.1.0 -- --version
+npm exec --yes @ferdousbhai/slop-detector@1.1.1 -- --version
 ```
 
 ## Publish Chrome
 
-Upload `slop-detector-chrome-store-v1.1.0.zip` from the GitHub Release to the
+Upload `slop-detector-chrome-store-v1.1.1.zip` from the GitHub Release to the
 existing Chrome Web Store item. The ZIP already has `manifest.json` at its root.
 Complete the listing and privacy review, then submit the update.
 
@@ -107,7 +106,7 @@ manual.
 - If the tag workflow fails, fix the source, bump to a new version, and create a
   new tag. Do not move a published release tag.
 - If npm publishing fails before registry publication, correct trusted-publisher
-  or environment configuration and rerun the failed job.
+  or environment configuration and release a corrected version.
 - npm versions cannot be republished after successful publication.
 - If Chrome rejects an upload, fix the extension, increment both versions, and
   release again.
