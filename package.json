@@ -1,43 +1,11 @@
 {
   "name": "@ferdousbhai/slop-detector",
   "version": "1.1.1",
+  "private": true,
   "description": "Deterministic linting for AI-flavored prose in browsers, repositories, and agent output",
   "packageManager": "npm@12.0.2",
   "license": "MIT",
   "type": "commonjs",
-  "bin": {
-    "slop-detector": "bin/slop-detector.js"
-  },
-  "exports": {
-    ".": "./extension/engine.js",
-    "./engine": "./extension/engine.js",
-    "./linter": "./lib/linter.js"
-  },
-  "files": [
-    "bin/",
-    "docs/",
-    "lib/",
-    "extension/engine.js",
-    "PRIVACY.md"
-  ],
-  "keywords": [
-    "ai",
-    "linter",
-    "prose",
-    "writing",
-    "agent"
-  ],
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/ferdousbhai/slop-detector.git"
-  },
-  "homepage": "https://github.com/ferdousbhai/slop-detector#readme",
-  "bugs": {
-    "url": "https://github.com/ferdousbhai/slop-detector/issues"
-  },
-  "publishConfig": {
-    "access": "public"
-  },
   "engines": {
     "node": ">=26",
     "npm": ">=12"
@@ -46,9 +14,7 @@
     "check": "node --check bin/slop-detector.js && node --check lib/linter.js && node --check extension/background.js && node --check extension/engine.js && node --check extension/popup.js && node --check extension/scanner.js && npm run check:versions",
     "check:versions": "node scripts/check-versions.js",
     "test": "node --test test.js test-scanner.js test-extension.js test-cli.js",
-    "verify:package": "node scripts/verify-package.js",
-    "package:chrome": "bash scripts/package-chrome.sh",
-    "package:npm": "npm run check:versions && node -e \"require('node:fs').mkdirSync('dist',{recursive:true})\" && npm pack --pack-destination dist"
+    "package:chrome": "bash scripts/package-chrome.sh"
   },
   "devDependencies": {
     "jsdom": "^30.0.1"

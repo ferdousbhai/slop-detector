@@ -36,8 +36,8 @@ jobs:
       - name: Run test suite
         run: npm test
 
-  validate-distributions:
-    name: Validate Chrome and npm distributions
+  validate-extension:
+    name: Validate Chrome distribution
     needs: test
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -60,5 +60,5 @@ jobs:
       - name: Check JavaScript syntax
         run: npm run check
 
-      - name: Verify packed npm CLI
-        run: npm run verify:package
+      - name: Build Chrome Web Store package
+        run: npm run package:chrome

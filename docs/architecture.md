@@ -1,7 +1,8 @@
 # Architecture
 
-Slop Detector has one rule engine, two distributions, and no runtime
-dependencies.
+Slop Detector has one rule engine, one Chrome distribution, and no runtime
+dependencies. Node tooling exists for development and repository-level checks
+but is not published as a package.
 
 ## Module boundaries
 
@@ -21,11 +22,7 @@ bin/slop-detector.js
 `extension/engine.js` is the canonical rule source. It exposes
 `globalThis.SlopEngine` when loaded as a Chrome script and `module.exports` when
 required by Node. Keeping this small dual-runtime wrapper avoids a bundler,
-copy step, or generated browser artifact. The npm allowlist includes this file
-but excludes the rest of the extension.
-
-The package exports it at both the package root and `/engine`. Existing
-consumers can keep using the root export; `/engine` makes the boundary explicit.
+copy step, or generated browser artifact.
 
 ### Repository linter
 
@@ -38,34 +35,18 @@ locations, and model-ready diagnostic text.
 `bin/slop-detector.js` parses arguments, reads bounded stdin, selects a command,
 and formats terminal or JSON output.
 
-## Distribution boundaries
-
-`package.json#files` is the npm publication allowlist:
-
-```json
-[
-  "bin/",
-  "docs/",
-  "lib/",
-  "extension/engine.js",
-  "PRIVACY.md"
-]
-```
-
-npm always adds package metadata, README, and license files. The explicit docs
-and privacy policy ship with the CLI. The package contains no browser content
-script, permissions, images, or store assets.
+## Distribution boundary
 
 The Chrome ZIP is created from `HEAD:extension`. Its manifest sits at the ZIP
-root, as required by the Chrome Web Store. It contains no Node CLI.
+root, as required by the Chrome Web Store. Repository tooling, tests,
+documentation, and store-source assets are not included.
 
 ## Why this is not a workspace
 
-There is one npm package, one shared version, and one canonical engine. npm
-workspaces would add package manifests, linking, version coordination, and a
-build boundary without creating an independently useful package. A workspace
-split becomes useful only if the engine, CLI, or extension gains an independent
-release lifecycle or dependency graph.
+There is one private npm project and one canonical engine. Workspaces would add
+package manifests, linking, and build boundaries without creating an
+independently released package. A split becomes useful only if the engine or
+repository tooling gains its own distribution lifecycle.
 
 ## Trust and data boundaries
 
@@ -87,9 +68,5 @@ release lifecycle or dependency graph.
 
 ## Public surface
 
-The supported public interfaces are:
-
-- the `slop-detector` executable;
-- `require("@ferdousbhai/slop-detector")`;
-- `require("@ferdousbhai/slop-detector/engine")`; and
-- `require("@ferdousbhai/slop-detector/linter")`.
+The supported public surface is the Chrome extension. The CLI and Node modules
+are source-tree development tools rather than versioned package interfaces.
