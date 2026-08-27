@@ -1,6 +1,6 @@
 {
   "name": "@ferdousbhai/slop-detector",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "Deterministic linting for AI-flavored prose in browsers, repositories, and agent output",
   "license": "MIT",
   "type": "commonjs",
@@ -41,14 +41,14 @@
     "node": ">=20"
   },
   "scripts": {
-    "check": "node --check bin/slop-detector.js && node --check lib/agent-hooks.js && node --check lib/install-hooks.js && node --check lib/linter.js && node --check lib/session-nudges.js && node --check extension/background.js && node --check extension/content.js && node --check extension/engine.js && node --check extension/popup.js && node --check extension/scanner.js && npm run check:versions",
+    "check": "node --check bin/slop-detector.js && node --check lib/linter.js && node --check extension/background.js && node --check extension/engine.js && node --check extension/popup.js && node --check extension/scanner.js && npm run check:versions",
     "check:versions": "node scripts/check-versions.js",
-    "test": "node --test test.js test-scanner.js test-cli.js",
+    "test": "node --test test.js test-scanner.js test-extension.js test-cli.js",
     "verify:package": "node scripts/verify-package.js",
     "package:chrome": "bash scripts/package-chrome.sh",
     "package:npm": "npm run check:versions && node -e \"require('node:fs').mkdirSync('dist',{recursive:true})\" && npm pack --pack-destination dist"
   },
   "devDependencies": {
-    "jsdom": "^30.0.1"
+    "jsdom": "^28.1.0"
   }
 }

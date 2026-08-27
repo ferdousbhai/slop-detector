@@ -21,7 +21,7 @@ mkdir -p "$output_dir"
 git archive --format=zip --output="$archive_path" HEAD:extension
 
 archive_version="$(unzip -p "$archive_path" manifest.json | node -e \
-  "let input=''; process.stdin.on('data', chunk => input += chunk); process.stdin.on('end', () => console.log(JSON.parse(input).version));")"
+  "const fs = require('node:fs'); console.log(JSON.parse(fs.readFileSync(0, 'utf8')).version);")"
 
 if [[ "$archive_version" != "$manifest_version" ]]; then
   echo "Packaged manifest version $archive_version does not match source version $manifest_version." >&2

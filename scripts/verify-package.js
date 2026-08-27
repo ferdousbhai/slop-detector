@@ -34,9 +34,8 @@ try {
   const included = new Set(packageManifest.files.map((file) => file.path));
   for (const required of [
     "bin/slop-detector.js",
-    "docs/agent-hooks.md",
     "extension/engine.js",
-    "lib/agent-hooks.js",
+    "lib/linter.js",
     "PRIVACY.md",
   ]) {
     if (!included.has(required)) throw new Error(`npm package omitted ${required}`);
@@ -53,6 +52,9 @@ try {
     : path.join(consumer, "node_modules", ".bin", "slop-detector");
   const version = run(cli, ["--version"], { cwd: consumer });
   requireStatus(version, 0, "installed CLI");
+  if (version.stdout.trim() !== packageManifest.version) {
+    throw new Error(`installed CLI reported ${version.stdout.trim()} instead of ${packageManifest.version}`);
+  }
   const exportsCheck = run(process.execPath, ["-e", [
     "const engine = require('@ferdousbhai/slop-detector');",
     "const engineAlias = require('@ferdousbhai/slop-detector/engine');",
@@ -71,36 +73,7 @@ try {
     throw new Error("installed agent lint did not return deterministic revision feedback");
   }
 
-  const home = path.join(temporary, "home");
-  const env = {
-    ...process.env,
-    HOME: home,
-    XDG_CONFIG_HOME: path.join(home, ".config"),
-    PI_CODING_AGENT_DIR: path.join(home, ".omp", "agent"),
-  };
-  const hooks = run(cli, [
-    "install-hooks",
-    "--scope=user",
-    "--agents=claude,codex,omp,ghost",
-    "--format=json",
-  ], { cwd: consumer, env });
-  requireStatus(hooks, 0, "installed hook installer");
-  const hookResult = JSON.parse(hooks.stdout);
-  if (hookResult.results.length !== 4 || hookResult.results.some((item) => !item.changed)) {
-    throw new Error("installed hook installer did not configure every requested agent");
-  }
-  for (const filenameToCheck of [
-    path.join(home, ".claude", "settings.json"),
-    path.join(home, ".codex", "hooks.json"),
-    path.join(home, ".omp", "agent", "extensions", "slop-detector.ts"),
-    path.join(home, ".config", "ghost", "hooks.json"),
-  ]) {
-    if (!fs.existsSync(filenameToCheck)) throw new Error(`hook installer omitted ${filenameToCheck}`);
-    const content = fs.readFileSync(filenameToCheck, "utf8");
-    if (!content.includes("slop-detector")) throw new Error(`${filenameToCheck} has no Slop Detector hook`);
-  }
-
-  console.log(`Verified ${filename}: CLI, lint gate, and four hook installers`);
+  console.log(`Verified ${filename}: CLI, lint gate, and public exports`);
 } finally {
   fs.rmSync(temporary, { recursive: true, force: true });
 }

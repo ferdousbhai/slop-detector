@@ -10,14 +10,10 @@ extension/engine.js
   ├─ browser extension UI and scanner
   └─ lib/linter.js
        ├─ repository checks
-       └─ agent-hooks.js
-            ├─ native stop-hook JSON
-            └─ session-nudges.js
+       └─ agent-output checks
 
 bin/slop-detector.js
-  ├─ check and agent commands
-  ├─ agent-hooks.js
-  └─ install-hooks.js
+  └─ check and agent commands
 ```
 
 ### Detection engine
@@ -35,25 +31,12 @@ consumers can keep using the root export; `/engine` makes the boundary explicit.
 
 `lib/linter.js` adapts the engine to files. It owns configuration, ignore
 matching, Git-aware file discovery, prose extraction, source segmentation,
-locations, and model-ready diagnostic text. It does not know any agent hook
-protocol.
-
-### Agent hooks
-
-`lib/agent-hooks.js` translates diagnostics to native agent results. It owns
-assistant-message extraction, compact revision feedback, warning presentation,
-retry limits, and OMP next-prompt advisory output.
-`lib/session-nudges.js` owns that small amount of session state.
-
-`lib/install-hooks.js` only merges configuration and generates OMP's thin
-adapter. Hook commands re-enter the installed CLI, so every runtime uses the
-same linter and configuration behavior.
+locations, and model-ready diagnostic text.
 
 ### CLI
 
 `bin/slop-detector.js` parses arguments, reads bounded stdin, selects a command,
-and formats terminal or JSON output. Installation does not load lint
-configuration because those concerns are independent.
+and formats terminal or JSON output.
 
 ## Distribution boundaries
 
@@ -74,8 +57,7 @@ and privacy policy ship with the CLI. The package contains no browser content
 script, permissions, images, or store assets.
 
 The Chrome ZIP is created from `HEAD:extension`. Its manifest sits at the ZIP
-root, as required by the Chrome Web Store. It contains no Node CLI or hook
-installer.
+root, as required by the Chrome Web Store. It contains no Node CLI.
 
 ## Why this is not a workspace
 
@@ -88,15 +70,11 @@ release lifecycle or dependency graph.
 ## Trust and data boundaries
 
 - Detection is local and deterministic.
-- Repository files and hook stdin are treated as untrusted input and bounded to
-  1 MB per file or hook payload.
+- Content scripts register CSS Custom Highlights and do not add, remove, wrap,
+  or replace host-page DOM nodes.
+- Repository files and agent-output stdin are treated as untrusted input and
+  bounded to 1 MB per file or payload.
 - Symlinks and binary files are not scanned.
-- Existing agent settings are parsed before writes and backed up once.
-- Multi-agent installation preflights configuration parsing and ownership before writes.
-- OMP generated code is replaced only when its ownership marker is present.
-- Ghost hooks are user-scoped; imported Ghost homes cannot supply executable
-  hook commands.
-- Warning state hashes session IDs and stores no response text.
 
 ## Efficiency choices
 
@@ -105,10 +83,7 @@ release lifecycle or dependency graph.
 - Git repositories use `git ls-files` instead of walking ignored directories.
 - Non-Git traversal prunes configured ignored paths before descending.
 - Duplicate diagnostics are removed before reporting.
-- Warning nudges create no model request.
-- Blocking feedback contains only violations and instructions; the model runtime
-  can reuse its existing conversation and prompt cache.
-- Expired nudge cleanup runs at most once per hour per state directory.
+- Agent-output feedback contains only violations and instructions.
 
 ## Public surface
 
@@ -118,7 +93,3 @@ The supported public interfaces are:
 - `require("@ferdousbhai/slop-detector")`;
 - `require("@ferdousbhai/slop-detector/engine")`; and
 - `require("@ferdousbhai/slop-detector/linter")`.
-
-Installer and hook modules remain private package internals. This leaves room to
-change native agent adapters without creating a JavaScript compatibility
-contract around them.

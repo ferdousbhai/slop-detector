@@ -1,6 +1,7 @@
 (() => {
   "use strict";
   const $ = (id) => document.getElementById(id);
+  const PENDING_SELECTION_KEY = "pendingSelection";
 
   const COLORS = { slop: "#C42B1F", suspicious: "#8A6100", human: "#2E6B34" };
 
@@ -74,4 +75,16 @@
   chrome.storage.sync.get({ autoScanPages: true }, (v) => { autoScan.checked = !!v.autoScanPages; });
   autoScan.addEventListener("change", () => chrome.storage.sync.set({ autoScanPages: autoScan.checked }));
 
+  async function loadPendingSelection() {
+    const pending = await chrome.storage.session.get(PENDING_SELECTION_KEY);
+    const text = pending[PENDING_SELECTION_KEY];
+    if (typeof text !== "string" || !text.trim()) return;
+    await chrome.storage.session.remove(PENDING_SELECTION_KEY);
+    $("input").value = text;
+    run();
+  }
+
+  void loadPendingSelection().catch(() => {
+    /* The popup remains usable if session storage is unavailable. */
+  });
 })();

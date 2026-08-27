@@ -1,5 +1,5 @@
 const test = require("node:test");
-const assert = require("node:assert");
+const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const { JSDOM } = require("jsdom");
@@ -9,7 +9,7 @@ const extensionFile = (name) => path.join(__dirname, "extension", name);
 const SLOP_P = `I hope this message finds you well. This launch marks a pivotal moment, showcasing our robust and transformative vision for the evolving landscape. Let me know if you have any questions.`;
 const HUMAN_P = `We met at the coffee shop around nine and argued about the playoffs for an hour. Nobody changed their mind but the pastries were worth the trip anyway.`;
 
-function boot(html, { autoScanPages = true } = {}) {
+function boot(html, { autoScanPages = true, supportsHighlights = true } = {}) {
   const dom = new JSDOM(`<!doctype html><body>${html}</body>`, {
     url: "https://example.com/",
     runScripts: "outside-only",
@@ -17,17 +17,33 @@ function boot(html, { autoScanPages = true } = {}) {
   });
   const w = dom.window;
 
-  // --- stub CSS Custom Highlight API (jsdom lacks it) ---
-  w.Highlight = class {
-    constructor() { this.ranges = new Set(); }
-    add(r) { this.ranges.add(r); }
-    delete(r) { this.ranges.delete(r); }
+  const observerStats = { created: 0, disconnected: 0 };
+  const NativeMutationObserver = w.MutationObserver;
+  w.MutationObserver = class extends NativeMutationObserver {
+    constructor(callback) {
+      super(callback);
+      observerStats.created++;
+    }
+
+    disconnect() {
+      observerStats.disconnected++;
+      super.disconnect();
+    }
   };
-  w.CSS = { highlights: new Map() };
-  w.Range.prototype.getBoundingClientRect = () => ({ left: 0, right: 20, top: 20, bottom: 36, width: 20, height: 16 });
+
+  // --- stub CSS Custom Highlight API (jsdom lacks it) ---
+  if (supportsHighlights) {
+    w.Highlight = class {
+      constructor() { this.ranges = new Set(); }
+      add(r) { this.ranges.add(r); }
+      delete(r) { this.ranges.delete(r); }
+    };
+    w.CSS = { highlights: new Map() };
+  }
 
   // --- stub chrome.storage ---
   const listeners = [];
+  const messages = [];
   const store = { autoScanPages };
   w.chrome = {
     storage: {
@@ -41,12 +57,17 @@ function boot(html, { autoScanPages = true } = {}) {
       },
       onChanged: { addListener: (fn) => listeners.push(fn) },
     },
-    runtime: { onMessage: { addListener: () => {} } },
+    runtime: {
+      sendMessage: (message) => {
+        messages.push(message);
+        return Promise.resolve();
+      },
+    },
   };
 
   w.eval(fs.readFileSync(extensionFile("engine.js"), "utf8"));
   w.eval(fs.readFileSync(extensionFile("scanner.js"), "utf8"));
-  return { dom, w, set: (k, v) => w.chrome.storage.sync.set({ [k]: v }) };
+  return { messages, w, observerStats, set: (k, v) => w.chrome.storage.sync.set({ [k]: v }) };
 }
 
 const tick = () => new Promise((r) => setTimeout(r, 60));
@@ -55,6 +76,10 @@ function highlightedTexts(w) {
   const hl = w.CSS.highlights.get("slop-mark");
   if (!hl) return [];
   return [...hl.ranges].map((r) => r.toString());
+}
+
+function lastFindingCount(messages) {
+  return messages.filter((message) => message.type === "slop:finding-count").at(-1)?.count;
 }
 
 test("slop paragraph gets underline ranges on the exact phrases", async () => {
@@ -68,55 +93,29 @@ test("slop paragraph gets underline ranges on the exact phrases", async () => {
   assert.ok(!texts.some((t) => /coffee shop|playoffs|pastries/i.test(t)), "human text must be untouched");
 });
 
-test("page highlights underline findings without changing page colors", async () => {
-  const { w } = boot(`<p style="color: #ddd">This launch marks a pivotal moment.</p>`);
+test("highlight styling is packaged without adding page DOM nodes", async () => {
+  const html = `<p style="color: #ddd">This launch marks a pivotal moment.</p>`;
+  const { w } = boot(html);
   await tick();
 
-  const style = w.document.getElementById("slop-detector-highlight-style");
-  assert.ok(style, "highlight styles should be installed");
-  assert.match(style.textContent, /text-decoration:underline wavy #C42B1F 1\.5px/);
-  assert.doesNotMatch(style.textContent, /background-color:/);
-  assert.doesNotMatch(style.textContent, /(?:^|[;{])color:/);
+  const css = fs.readFileSync(extensionFile("highlights.css"), "utf8");
+  assert.match(css, /text-decoration:\s*underline wavy #C42B1F 1\.5px/);
+  assert.doesNotMatch(css, /background-color:/);
+  assert.doesNotMatch(css, /(?:^|[;{])\s*color:/);
+  assert.strictEqual(w.document.body.innerHTML, html);
 });
 
-test("badge appears with the finding count", async () => {
-  const { w } = boot(`<p>${SLOP_P}</p>`);
+test("reports the finding count for the toolbar badge", async () => {
+  const { messages, w } = boot(`<p>${SLOP_P}</p>`);
   await tick();
-  const badge = w.document.querySelector(".slop-detector-badge-host");
-  assert.ok(badge, "badge should exist");
-  const n = badge.shadowRoot.querySelector(".n").textContent;
-  assert.strictEqual(Number(n), highlightedTexts(w).length);
+  assert.strictEqual(lastFindingCount(messages), highlightedTexts(w).length);
 });
 
-test("hovering a marked phrase shows its rule id", async () => {
-  const { w } = boot(`<p>${SLOP_P}</p>`);
-  await tick();
-  const p = [...w.document.querySelectorAll("p")].find((el) => /pivotal moment/.test(el.textContent));
-  const tn = p.firstChild;
-  w.document.caretRangeFromPoint = () => ({ startContainer: tn, startOffset: tn.nodeValue.indexOf("pivotal") });
-  w.document.dispatchEvent(new w.MouseEvent("mousemove", { clientX: 10, clientY: 10 }));
-  await tick();
-  const tip = w.document.querySelector(".slop-detector-tip-host");
-  assert.ok(tip, "tooltip should appear on hover");
-  assert.match(tip.shadowRoot.textContent, /puffery/);
-});
-
-test("hovering unmarked text shows no tooltip", async () => {
-  const { w } = boot(`<p>${SLOP_P}</p><p>${HUMAN_P}</p>`);
-  await tick();
-  const p = [...w.document.querySelectorAll("p")].find((el) => /coffee shop/.test(el.textContent));
-  const tn = p.firstChild;
-  w.document.caretRangeFromPoint = () => ({ startContainer: tn, startOffset: 0 });
-  w.document.dispatchEvent(new w.MouseEvent("mousemove", { clientX: 10, clientY: 10 }));
-  await tick();
-  assert.strictEqual(w.document.querySelector(".slop-detector-tip-host"), null);
-});
-
-test("clean page shows no badge and no highlights", async () => {
-  const { w } = boot(`<p>${HUMAN_P}</p>`);
+test("clean page reports zero and has no highlights", async () => {
+  const { messages, w } = boot(`<p>${HUMAN_P}</p>`);
   await tick();
   assert.strictEqual(highlightedTexts(w).length, 0);
-  assert.strictEqual(w.document.querySelector(".slop-detector-badge-host"), null);
+  assert.strictEqual(lastFindingCount(messages), 0);
 });
 
 test("short blocks and code blocks are skipped", async () => {
@@ -133,45 +132,68 @@ test("dynamically inserted slop is caught by the observer", async () => {
   assert.ok(highlightedTexts(w).some((t) => /pivotal moment/i.test(t)));
 });
 
-test("text edits replace stale highlights and update the badge", async () => {
-  const { w } = boot(`<p id="draft">${SLOP_P}</p>`);
+test("removing a marked block clears stale highlights and toolbar count", async () => {
+  const { messages, w } = boot(`<div id="feed"><p id="draft">${SLOP_P}</p></div>`);
+  await tick();
+  assert.ok(highlightedTexts(w).length > 0);
+
+  w.document.getElementById("draft").remove();
+  await tick();
+  assert.strictEqual(highlightedTexts(w).length, 0);
+  assert.strictEqual(lastFindingCount(messages), 0);
+});
+
+test("text edits replace stale highlights and update the toolbar count", async () => {
+  const { messages, w } = boot(`<p id="draft">${SLOP_P}</p>`);
   await tick();
   assert.ok(highlightedTexts(w).length > 0);
 
   w.document.getElementById("draft").firstChild.nodeValue = HUMAN_P;
   await tick();
   assert.strictEqual(highlightedTexts(w).length, 0);
-  assert.strictEqual(w.document.querySelector(".slop-detector-badge-host"), null);
+  assert.strictEqual(lastFindingCount(messages), 0);
 
   w.document.getElementById("draft").firstChild.nodeValue = SLOP_P;
   await tick();
   assert.ok(highlightedTexts(w).some((text) => /pivotal moment/i.test(text)));
 });
 
-test("toggle off clears highlights and badge", async () => {
-  const { w, set } = boot(`<p>${SLOP_P}</p>`);
+test("toggle off clears highlights and the toolbar count", async () => {
+  const { messages, w, observerStats, set } = boot(`<p>${SLOP_P}</p>`);
   await tick();
   assert.ok(highlightedTexts(w).length > 0);
+  assert.strictEqual(observerStats.created, 1);
   set("autoScanPages", false);
   await tick();
+  assert.strictEqual(observerStats.disconnected, 1);
   assert.strictEqual(w.CSS.highlights.get("slop-mark"), undefined);
-  assert.strictEqual(w.document.querySelector(".slop-detector-badge-host"), null);
+  assert.strictEqual(lastFindingCount(messages), 0);
 });
 
 test("toggling back on re-scans already-seen blocks", async () => {
-  const { w, set } = boot(`<p>${SLOP_P}</p>`);
+  const { w, observerStats, set } = boot(`<p>${SLOP_P}</p>`);
   await tick();
   set("autoScanPages", false);
   await tick();
   set("autoScanPages", true);
   await tick();
+  assert.strictEqual(observerStats.created, 2);
   assert.ok(highlightedTexts(w).some((t) => /pivotal moment/i.test(t)), "highlights must be restored");
 });
 
 test("starts disabled when setting is off", async () => {
-  const { w } = boot(`<p>${SLOP_P}</p>`, { autoScanPages: false });
+  const { messages, w, observerStats } = boot(`<p>${SLOP_P}</p>`, { autoScanPages: false });
   await tick();
+  assert.strictEqual(observerStats.created, 0);
   assert.strictEqual(highlightedTexts(w).length, 0);
+  assert.strictEqual(lastFindingCount(messages), 0);
+});
+
+test("does not observe pages without CSS highlight support", async () => {
+  const { messages, observerStats } = boot(`<p>${SLOP_P}</p>`, { supportsHighlights: false });
+  await tick();
+  assert.strictEqual(observerStats.created, 0);
+  assert.strictEqual(lastFindingCount(messages), 0);
 });
 
 test("nothing is ever hidden, even certified slop in a feed", async () => {
@@ -182,6 +204,6 @@ test("nothing is ever hidden, even certified slop in a feed", async () => {
   for (const a of w.document.querySelectorAll("article")) {
     assert.notStrictEqual(a.style.display, "none", "no article may be hidden");
   }
-  assert.strictEqual(w.document.querySelectorAll(".slop-detector-bar-host").length, 0, "no hide bars");
+  assert.strictEqual(w.document.body.querySelectorAll("[class^='slop-detector-']").length, 0, "no extension UI may be injected");
   assert.ok(highlightedTexts(w).length > 0, "slop still underlined");
 });

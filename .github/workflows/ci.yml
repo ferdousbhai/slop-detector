@@ -57,8 +57,5 @@ jobs:
       - name: Check JavaScript syntax
         run: npm run check
 
-      - name: Validate extension manifest
-        run: node -e "JSON.parse(require('fs').readFileSync('extension/manifest.json', 'utf8'))"
-
-      - name: Verify packed npm CLI and hook installers
+      - name: Verify packed npm CLI
         run: npm run verify:package

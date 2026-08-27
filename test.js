@@ -1,5 +1,5 @@
 const test = require("node:test");
-const assert = require("node:assert");
+const assert = require("node:assert/strict");
 const { analyze } = require("./extension/engine.js");
 
 test("heavy slop scores high", () => {

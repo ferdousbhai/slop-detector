@@ -2,7 +2,7 @@
 
 ## Upload package
 
-Upload `dist/slop-detector-chrome-store-v1.0.1.zip`. It contains the committed
+Upload `dist/slop-detector-chrome-store-v1.1.0.zip`. It contains the committed
 `extension/` tree with `manifest.json` at the ZIP root. Build it from a clean
 working tree:
 
@@ -17,8 +17,7 @@ See [`docs/releasing.md`](docs/releasing.md) for versioning and release steps.
 - **Name**: Slop Detector
 - **Summary** (132 chars max): Red-pen linting for AI-flavored writing.
   Underlines slop on any page; check drafts in the popup.
-- **Category**: Productivity → Tools? Use "Accessibility"? Recommended:
-  **Productivity** or **Developer Tools**.
+- **Category**: Tools
 - **Language**: English (US)
 
 ### Description
@@ -32,12 +31,13 @@ pivotal moment"), vague attribution ("experts believe"), binary contrasts
 bullets, and a larger catalog of recurring prose patterns.
 
 - Auto-scan: visible text on every page is linted automatically. Findings get
-  a wavy red underline via the CSS Custom Highlight API — the page's colors
-  and DOM are never modified, nothing is ever hidden or removed.
-- Hover any underline to see which rule triggered.
+  a wavy red underline via the CSS Custom Highlight API. Existing page text is
+  not wrapped, replaced, recolored, hidden, or removed.
+- The toolbar badge shows the number of page findings.
 - Popup checker: paste a draft, get highlighted findings and a verdict —
   READS HUMAN / SUSPICIOUS / CERTIFIED SLOP.
-- Right-click any selected text → "Check selection for slop".
+- Right-click any selected text → "Check selection for slop" to open it in the
+  extension popup.
 
 Pure pattern matching: fast, explainable, no ML, no network calls, everything
 runs locally. Open source: https://github.com/ferdousbhai/slop-detector
@@ -49,19 +49,19 @@ runs locally. Open source: https://github.com/ferdousbhai/slop-detector
 - **Permission justifications**:
   - `contextMenus` — adds the right-click "Check selection for slop" item.
   - `storage` — persists the auto-scan on/off toggle (synced to the user's
-    Chrome profile).
+    Chrome profile) and briefly holds a context-menu selection in memory until
+    the popup retrieves it.
   - Content script on `<all_urls>` — auto-scan must run on every site the
     user browses; the extension is a passive reader of visible text only.
 - **Remote code**: none. No data collection, no analytics, no network requests.
 - **Data usage disclosure**: does not collect or transmit any user data.
 
-## Assets needed (manual)
+## Store assets
 
-1. At least 1 screenshot, 1280×800 or 640×400 PNG. Suggested shots:
-   popup with a marked-up draft + CERTIFIED SLOP stamp; an article page with
-   underlines + hover label showing a rule id.
-2. Small promo tile (440×280) — optional but recommended.
-3. Marquee promo (1400×560) — optional.
+- `store-assets/screenshot-popup-certified-slop.png` — 1280×800 screenshot.
+- `store-assets/screenshot-page-underlines.png` — 1280×800 screenshot.
+- `store-assets/promo-small-440x280.png` — small promo tile.
+- `store-assets/promo-marquee-1400x560.png` — marquee promo.
 
 ## Review expectations
 

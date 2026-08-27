@@ -49,18 +49,18 @@ Chrome packaging script refuses a dirty tree and archives the committed
 Create and push an annotated tag:
 
 ```bash
-git tag -a v1.0.1 -m "Slop Detector v1.0.1"
-git push origin v1.0.1
+git tag -a v1.1.0 -m "Slop Detector v1.1.0"
+git push origin v1.1.0
 ```
 
 `.github/workflows/release.yml` checks the tag against both versions, runs the
 suite, and creates these artifacts in `dist/`:
 
 ```text
-slop-detector-chrome-store-v1.0.1.zip
-slop-detector-chrome-store-v1.0.1.zip.sha256
-ferdousbhai-slop-detector-1.0.1.tgz
-ferdousbhai-slop-detector-1.0.1.tgz.sha256
+slop-detector-chrome-store-v1.1.0.zip
+slop-detector-chrome-store-v1.1.0.zip.sha256
+ferdousbhai-slop-detector-1.1.0.tgz
+ferdousbhai-slop-detector-1.1.0.tgz.sha256
 ```
 
 The workflow uploads the directory as a workflow artifact and attaches each
@@ -85,12 +85,12 @@ After completion, verify:
 
 ```bash
 npm view @ferdousbhai/slop-detector version dist.attestations
-npm exec --yes @ferdousbhai/slop-detector@1.0.1 -- --version
+npm exec --yes @ferdousbhai/slop-detector@1.1.0 -- --version
 ```
 
 ## Publish Chrome
 
-Upload `slop-detector-chrome-store-v1.0.1.zip` from the GitHub Release to the
+Upload `slop-detector-chrome-store-v1.1.0.zip` from the GitHub Release to the
 existing Chrome Web Store item. The ZIP already has `manifest.json` at its root.
 Complete the listing and privacy review, then submit the update.
 
