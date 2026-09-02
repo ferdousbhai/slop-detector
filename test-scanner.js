@@ -31,7 +31,7 @@ function boot(html, { autoScanPages = true, supportsHighlights = true } = {}) {
     }
   };
 
-  // --- stub CSS Custom Highlight API (jsdom lacks it) ---
+  // jsdom does not implement the CSS Custom Highlight API.
   if (supportsHighlights) {
     w.Highlight = class {
       constructor() { this.ranges = new Set(); }
@@ -41,7 +41,6 @@ function boot(html, { autoScanPages = true, supportsHighlights = true } = {}) {
     w.CSS = { highlights: new Map() };
   }
 
-  // --- stub chrome.storage ---
   const listeners = [];
   const messages = [];
   const store = { autoScanPages };
@@ -89,7 +88,6 @@ test("slop paragraph gets underline ranges on the exact phrases", async () => {
   assert.ok(texts.length >= 3, `expected several ranges, got ${texts.length}`);
   assert.ok(texts.some((t) => /finds you well/i.test(t)), "opener should be marked");
   assert.ok(texts.some((t) => /pivotal moment/i.test(t)), "puffery should be marked");
-  // No range should come from the human paragraph
   assert.ok(!texts.some((t) => /coffee shop|playoffs|pastries/i.test(t)), "human text must be untouched");
 });
 

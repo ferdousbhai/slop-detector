@@ -9,7 +9,6 @@
     return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
 
-  // Merge overlapping spans so highlights never nest badly.
   function mergeSpans(findings) {
     const spans = findings.filter((f) => f.end > f.start).map((f) => [f.start, f.end]);
     spans.sort((a, b) => a[0] - b[0]);
@@ -70,7 +69,6 @@
 
   $("check").addEventListener("click", run);
 
-  // Auto-scan toggle, persisted in sync storage.
   const autoScan = $("autoScan");
   chrome.storage.sync.get({ autoScanPages: true }, (v) => { autoScan.checked = !!v.autoScanPages; });
   autoScan.addEventListener("change", () => chrome.storage.sync.set({ autoScanPages: autoScan.checked }));

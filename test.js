@@ -57,8 +57,6 @@ test("empty-ish input does not crash", () => {
   assert.strictEqual(analyze("ok").verdict, "human");
 });
 
-// --- tests for merged unslop / no-ai-slop patterns ---
-
 test("puffery and vague attribution flagged", () => {
   const r = analyze("This launch marks a pivotal moment and stands as a testament to our vision. Experts believe it plays a vital role in the evolving landscape.");
   const ids = new Set(r.findings.map((f) => f.ruleId));

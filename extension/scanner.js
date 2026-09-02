@@ -1,7 +1,4 @@
-/* Universal auto-scan, Google-Translate style. One consistent behavior on
-   every site: walk visible text, segment into blocks, lint each, and
-   underline findings via the CSS Custom Highlight API. Nothing is ever
-   hidden or removed from the page. */
+/* CSS Custom Highlights keep annotations out of the host page's DOM. */
 
 (() => {
   "use strict";
@@ -9,8 +6,6 @@
   const SKIP_TAGS = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "TEXTAREA", "INPUT", "SELECT", "CODE", "PRE", "SVG", "IFRAME"]);
   const BLOCK_TAGS = new Set(["P", "DIV", "LI", "BLOCKQUOTE", "ARTICLE", "SECTION", "TD", "DD", "FIGCAPTION", "H1", "H2", "H3", "H4", "H5", "H6"]);
   const MIN_WORDS = 15;
-
-  // ---------- state ----------
 
   let processedBlocks = new WeakSet();
   let scanEnabled = true;
@@ -20,8 +15,6 @@
   let lastReportedCount = null;
 
   const highlightSupported = typeof Highlight !== "undefined" && typeof CSS !== "undefined" && CSS.highlights;
-
-  // ---------- block discovery ----------
 
   function blockOf(node) {
     let el = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
@@ -52,8 +45,6 @@
     return blocks;
   }
 
-  // ---------- underline linting ----------
-
   function lintBlock(block, textNodes) {
     let text = "";
     const offsets = [];
@@ -61,11 +52,8 @@
       offsets.push({ node, start: text.length, end: text.length + node.nodeValue.length });
       text += node.nodeValue;
     }
-    if (text.trim().split(/\s+/).length < MIN_WORDS) {
-      processedBlocks.add(block);
-      return;
-    }
     processedBlocks.add(block);
+    if (text.trim().split(/\s+/).length < MIN_WORDS) return;
 
     const result = globalThis.SlopEngine.analyze(text);
     for (const f of result.findings) {
@@ -80,7 +68,7 @@
         range.slopBlock = block;
         highlight.add(range);
         allRanges.push(range);
-      } catch { /* detached node; skip */ }
+      } catch { /* Nodes can detach between traversal and Range construction. */ }
     }
   }
 
@@ -106,8 +94,6 @@
     removeRanges((range) => blocks.has(range.slopBlock));
   }
 
-  // ---------- toolbar count ----------
-
   function reportFindingCount() {
     if (allRanges.length === lastReportedCount) return;
     lastReportedCount = allRanges.length;
@@ -117,17 +103,17 @@
     });
   }
 
-  function updateFindingCount() {
-    // Drop ranges whose text was removed from the DOM so the count and
-    // toolbar badge stay accurate on long-lived pages.
-    removeRanges((range) => !(range.slopBlock?.isConnected
+  function isLiveRange(range) {
+    return range.slopBlock?.isConnected
       && range.startContainer.isConnected
       && range.endContainer.isConnected
-      && !range.collapsed));
-    reportFindingCount();
+      && !range.collapsed;
   }
 
-  // ---------- lifecycle ----------
+  function updateFindingCount() {
+    removeRanges((range) => !isLiveRange(range));
+    reportFindingCount();
+  }
 
   function ensureObserver() {
     if (observer) return;

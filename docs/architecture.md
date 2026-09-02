@@ -19,7 +19,9 @@ bin/slop-detector.js
 
 ### Detection engine
 
-`extension/engine.js` is the canonical rule source. It exposes
+`extension/engine.js` is the canonical rule source. Its pattern catalog draws
+on dmmulroy/anti-slop (architecture), the Cursor plugins unslop skill, and
+petergyang/no-ai-slop (pattern lists). It exposes
 `globalThis.SlopEngine` when loaded as a Chrome script and `module.exports` when
 required by Node. Keeping this small dual-runtime wrapper avoids a bundler,
 copy step, or generated browser artifact.

@@ -1,9 +1,3 @@
-/* Slop Detector engine — rule-based, no ML, runs anywhere.
-   Mirrors a linter: each rule inspects text and reports findings
-   { ruleId, message, severity, start, end } like context.report().
-   Pattern sources: dmmulroy/anti-slop (architecture), cursor/plugins
-   unslop skill, petergyang/no-ai-slop (pattern lists). */
-
 (() => {
   "use strict";
 
@@ -32,8 +26,6 @@
     "vague-attribution": "Name the source or remove the attribution.",
   });
 
-  // ---------- helpers ----------
-
   function words(text) {
     return text.trim().split(/\s+/).filter(Boolean);
   }
@@ -56,11 +48,7 @@
     return out;
   }
 
-  // ---------- pattern catalog ----------
-  // Each entry: { id, sev, p, why }. One generic runner executes them all.
-
-  const CATALOG = [
-    // --- canonical openers / assistant-speak (major) ---
+  const PATTERN_CATALOG = [
     { id: "chatbot-phrase", sev: SEV.MAJOR, p: /i hope this (?:message|email|note)? ?finds you well/i, why: "Canonical AI opener." },
     { id: "chatbot-phrase", sev: SEV.MAJOR, p: /\bi'?d be happy to\b/i, why: "Assistant-speak." },
     { id: "chatbot-phrase", sev: SEV.MAJOR, p: /\blet me know if you have any (?:questions|thoughts)\b/i, why: "Assistant-speak closer." },
@@ -73,49 +61,44 @@
     { id: "chatbot-phrase", sev: SEV.MAJOR, p: /\bi appreciate your patience\b/i, why: "Support-bot phrasing." },
     { id: "chatbot-phrase", sev: SEV.MAJOR, p: /\bplease don'?t hesitate to\b/i, why: "Support-bot phrasing." },
     { id: "chatbot-phrase", sev: SEV.MAJOR, p: /\b(?:hope (?:this|that) helps|let me know if (?:you need|there'?s) anything else|happy to (?:help|assist|clarify) (?:further|more|with anything else))\b[!.]*/i, why: "Assistant-style closing offer." },
-    { id: "chatbot-phrase", sev: SEV.MAJOR, p: /\bfound the smoking gun\b/i, why: "Agent-speak (unslop #20)." },
+    { id: "chatbot-phrase", sev: SEV.MAJOR, p: /\bfound the smoking gun\b/i, why: "Agent-speak." },
 
-    // --- puffery / importance inflation (major) ---
     { id: "puffery", sev: SEV.MAJOR, p: /\b(?:marks?|marking) a pivotal moment\b/i, why: "Importance puffery — state what happened." },
     { id: "puffery", sev: SEV.MAJOR, p: /\b(?:stands? as|is) a testament to\b/i, why: "Importance puffery." },
     { id: "puffery", sev: SEV.MAJOR, p: /\bevolving landscape\b/i, why: "Stock AI framing." },
-    { id: "puffery", sev: SEV.MAJOR, p: /\bsetting the stage for\b/i, why: "Puffery (unslop #1)." },
-    { id: "puffery", sev: SEV.MAJOR, p: /\bindelible mark\b/i, why: "Puffery (unslop #1)." },
-    { id: "puffery", sev: SEV.MAJOR, p: /\bdeeply rooted\b/i, why: "Puffery (unslop #1)." },
+    { id: "puffery", sev: SEV.MAJOR, p: /\bsetting the stage for\b/i, why: "Puffery." },
+    { id: "puffery", sev: SEV.MAJOR, p: /\bindelible mark\b/i, why: "Puffery." },
+    { id: "puffery", sev: SEV.MAJOR, p: /\bdeeply rooted\b/i, why: "Puffery." },
     { id: "puffery", sev: SEV.MAJOR, p: /\bplays? a vital role\b/i, why: "Importance puffery." },
     { id: "puffery", sev: SEV.MAJOR, p: /\bsolidif(?:y|ies|ying) (?:its|their|his|her) position\b/i, why: "Importance puffery." },
     { id: "puffery", sev: SEV.MAJOR, p: /\bunderscor(?:es?|ing) (?:its|the) (?:significance|importance|commitment)\b/i, why: "Importance puffery." },
     { id: "puffery", sev: SEV.MAJOR, p: /\b(?:rich|vibrant) tapestry\b/i, why: "AI-favored metaphor." },
     { id: "puffery", sev: SEV.MAJOR, p: /\bin today'?s fast-paced (?:world|environment)\b/i, why: "Stock AI framing." },
-    { id: "puffery", sev: SEV.MAJOR, p: /\bdespite (?:these |the |its )?challenges[^.!?\n]{0,60}(?:continues? to thrive|remains?)\b/i, why: "Formulaic challenges (unslop #6)." },
+    { id: "puffery", sev: SEV.MAJOR, p: /\bdespite (?:these |the |its )?challenges[^.!?\n]{0,60}(?:continues? to thrive|remains?)\b/i, why: "Formulaic “despite challenges” framing." },
     { id: "puffery", sev: SEV.MAJOR, p: /\bunlock (?:the|your) (?:full )?potential\b/i, why: "Stock AI hype." },
-    { id: "puffery", sev: SEV.MAJOR, p: /\bthe future looks bright\b/i, why: "Generic conclusion (unslop #25)." },
+    { id: "puffery", sev: SEV.MAJOR, p: /\bthe future looks bright\b/i, why: "Generic conclusion." },
 
-    // --- vague attribution (major) ---
     { id: "vague-attribution", sev: SEV.MAJOR, p: /\bexperts (?:believe|agree|say|suggest)\b/i, why: "Weasel attribution — name the source." },
     { id: "vague-attribution", sev: SEV.MAJOR, p: /\bindustry reports? suggests?\b/i, why: "Weasel attribution." },
     { id: "vague-attribution", sev: SEV.MAJOR, p: /\bstudies (?:show|suggest|indicate)\b/i, why: "Weasel attribution." },
     { id: "vague-attribution", sev: SEV.MAJOR, p: /\bwidely regarded as\b/i, why: "Weasel attribution." },
     { id: "vague-attribution", sev: SEV.MAJOR, p: /\b(?:some|many) (?:critics|people|would) argue\b/i, why: "Weasel attribution." },
 
-    // --- throat-clearing & faux insight (major) ---
     { id: "throat-clearing", sev: SEV.MAJOR, p: /\bhere'?s the thing\b/i, why: "Throat-clearing opener." },
     { id: "throat-clearing", sev: SEV.MAJOR, p: /\blet me be clear\b/i, why: "Throat-clearing opener." },
     { id: "throat-clearing", sev: SEV.MAJOR, p: /\bthe (?:uncomfortable|hard|simple) truth is\b/i, why: "Throat-clearing opener." },
-    { id: "throat-clearing", sev: SEV.MAJOR, p: /\blet'?s dive in\b/i, why: "Empty phrase (no-ai-slop)." },
+    { id: "throat-clearing", sev: SEV.MAJOR, p: /\blet'?s dive in\b/i, why: "Empty phrase." },
     { id: "faux-insight", sev: SEV.MAJOR, p: /\bwhat most people (?:get wrong|miss|don'?t (?:know|realize|understand))\b/i, why: "Faux-insight setup." },
     { id: "faux-insight", sev: SEV.MAJOR, p: /\bhere'?s what nobody tells you\b/i, why: "Faux-insight setup." },
     { id: "faux-insight", sev: SEV.MAJOR, p: /\bthe part everyone misses\b/i, why: "Faux-insight setup." },
     { id: "faux-insight", sev: SEV.MAJOR, p: /\bthis is the part most people skip\b/i, why: "Faux-insight setup." },
 
-    // --- rhetorical setups & drama (major) ---
     { id: "rhetorical-setup", sev: SEV.MAJOR, p: /\bwhat if i told you\b/i, why: "Rhetorical setup." },
     { id: "rhetorical-setup", sev: SEV.MAJOR, p: /\bthink about it:/i, why: "Rhetorical setup." },
     { id: "rhetorical-setup", sev: SEV.MAJOR, p: /\bplot twist:/i, why: "Rhetorical setup." },
-    { id: "colon-reveal", sev: SEV.MAJOR, p: /\b(?:the best part|the kicker|the catch|the twist|the result):\s/i, why: "Colon reveal — fake drama (no-ai-slop)." },
+    { id: "colon-reveal", sev: SEV.MAJOR, p: /\b(?:the best part|the kicker|the catch|the twist|the result):\s/i, why: "Colon reveal — fake drama." },
     { id: "dramatic-fragment", sev: SEV.MAJOR, p: /\bthat'?s it\.\s+that'?s\b/i, why: "\u201CThat's it. That's the whole thing.\u201D fragment drama." },
 
-    // --- essay connectives & filler (major-ish) ---
     { id: "essay-connective", sev: SEV.MAJOR, p: /\bmoreover\b/i, why: "Essay connective — rare in real chat." },
     { id: "essay-connective", sev: SEV.MAJOR, p: /\bfurthermore\b/i, why: "Essay connective — rare in real chat." },
     { id: "essay-connective", sev: SEV.MAJOR, p: /\badditionally,/i, why: "Essay connective — rare in real chat." },
@@ -130,12 +113,10 @@
     { id: "filler-phrase", sev: SEV.MINOR, p: /\bthe (?:reality|truth) is\b/i, why: "Often-empty phrase." },
     { id: "filler-phrase", sev: SEV.MINOR, p: /\bgoing forward\b/i, why: "Often-empty phrase." },
 
-    // --- fancy ways to say "is" (minor) ---
     { id: "inflated-verb", sev: SEV.MINOR, p: /\bserves? as\b/i, why: "\u2192 just say \u201Cis\u201D." },
     { id: "inflated-verb", sev: SEV.MINOR, p: /\bstands? as\b/i, why: "\u2192 just say \u201Cis\u201D." },
     { id: "inflated-verb", sev: SEV.MINOR, p: /\bboasts?\b/i, why: "\u2192 \u201Chas\u201D." },
 
-    // --- landscape cliche (major) + AI vocabulary, single words (minor) ---
     { id: "landscape-cliche", sev: SEV.MAJOR, p: /\bnavigat(?:e|ing) (?:the|this|these|today's) (?:complex|challenging|evolving|landscape)/i, why: "\u201CNavigating the X landscape\u201D clich\u00E9." },
     ...[
       ["delve", "Top AI tell."], ["tapestry", "AI metaphor noun."], ["foster(?:s|ing|ed)?", "AI vocabulary."],
@@ -155,19 +136,35 @@
       ["nestled", "Promotional word."], ["breathtaking", "Promotional word."], ["renowned", "Promotional word."],
       ["stunning", "Promotional word."], ["must-visit", "Promotional word."],
       ["dive (?:deep(?:er)? )?into", "AI-favored verb."],
-    ].map(([w, why]) => ({ id: "ai-vocabulary", sev: SEV.MINOR, p: new RegExp("\\b" + w + "\\b", "i"), why })),
+    ].map(([wordPattern, explanation]) => ({
+      id: "ai-vocabulary",
+      sev: SEV.MINOR,
+      p: new RegExp("\\b" + wordPattern + "\\b", "i"),
+      why: explanation,
+    })),
   ];
-
-  // ---------- rule definitions ----------
 
   const rules = [
     {
       id: "catalog",
       run(text) {
         const out = [];
-        for (const { id, sev, p, why } of CATALOG) {
-          for (const f of findAll(text, p, (m) => ({ start: m.index, end: m.index + m[0].length }))) {
-            out.push({ ...f, ruleId: id, severity: sev, message: `"${text.slice(f.start, f.end)}" \u2014 ${why}` });
+        for (const {
+          id: ruleId,
+          sev: severity,
+          p: pattern,
+          why: explanation,
+        } of PATTERN_CATALOG) {
+          for (const finding of findAll(text, pattern, (match) => ({
+            start: match.index,
+            end: match.index + match[0].length,
+          }))) {
+            out.push({
+              ...finding,
+              ruleId,
+              severity,
+              message: `"${text.slice(finding.start, finding.end)}" \u2014 ${explanation}`,
+            });
           }
         }
         return out;
@@ -177,19 +174,16 @@
       id: "binary-contrast",
       run(text) {
         const out = [];
-        // "not just X, but Y" / "not just X, it's Y"
         out.push(...findAll(
           text,
           /\b(?:it'?s|this is|that'?s|they'?re|is)? ?not (?:just|only|merely|simply) [^.!?\n]{2,60}?[,;\u2014-]? ?(?:it'?s|but(?: also)?|but rather)\b/gi,
           (m) => ({ start: m.index, end: m.index + m[0].length, message: "\u201CNot just X, but Y\u201D \u2014 signature AI cadence. State Y directly." })
         ));
-        // "This isn't X. It's Y." / "The question isn't X, it's Y."
         out.push(...findAll(
           text,
           /\b(?:this |that |the \w+ )?(?:isn'?t|is not|wasn'?t)(?: about)? [^.!?\n]{2,50}[.,;]\s*it'?s\b/gi,
           (m) => ({ start: m.index, end: m.index + m[0].length, message: "Binary contrast (\u201CIt isn't X. It's Y.\u201D) \u2014 state Y directly." })
         ));
-        // Negative listing: "Not a X. Not a Y."
         out.push(...findAll(
           text,
           /\bnot an? [^.!?\n]{2,40}\.\s+not an?\b/gi,
@@ -287,8 +281,6 @@
       },
     },
   ];
-
-  // ---------- scoring ----------
 
   function analyze(text) {
     const findings = [];
