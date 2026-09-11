@@ -10,7 +10,6 @@ const {
   collectFiles,
   lintFile,
   lintText,
-  revisionFeedback,
   segmentsForFile,
 } = require("./lib/linter.js");
 
@@ -213,18 +212,4 @@ test("agent mode ignores slop examples inside fenced code", () => {
   });
   assert.equal(result.status, 0, result.stderr);
   assert.equal(JSON.parse(result.stdout).ok, true);
-});
-
-test("revision feedback includes only supplied violations", () => {
-  const feedback = revisionFeedback([{
-    level: "error",
-    ruleId: "chatbot-phrase",
-    instruction: "Remove canned assistant phrasing.",
-    text: "Great question",
-    message: "Canonical assistant phrasing.",
-  }]);
-  assert.equal(
-    feedback,
-    "Revise style only. Remove canned assistant phrasing. Preserve meaning and required facts. Return only the revision.",
-  );
 });

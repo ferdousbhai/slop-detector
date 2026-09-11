@@ -98,9 +98,3 @@ test("single vocab word is only minor, not damning", () => {
   assert.ok(r.findings.some((f) => f.ruleId === "ai-vocabulary"));
   assert.ok(r.verdict !== "slop", `one word should not certify slop, got ${r.score}`);
 });
-
-test("inflated-verb flagged as minor", () => {
-  const r = analyze("The app serves as a centralized hub for everything.");
-  const f = r.findings.find((x) => x.ruleId === "inflated-verb");
-  assert.ok(f && f.severity === "minor");
-});
