@@ -137,6 +137,18 @@ test("repository collection uses git files and excludes ignored content", () => 
   assert.ok(lintFile(path.join(directory, "README.md")).some((item) => item.ruleId === "chatbot-phrase"));
 });
 
+test("a repository nested under an ignored directory name is still linted", () => {
+  const directory = path.join(tempDir(), "build", "myrepo");
+  fs.mkdirSync(directory, { recursive: true });
+  spawnSync("git", ["init", "-q", directory]);
+  fs.writeFileSync(path.join(directory, "README.md"), "Great question! This text needs revision.\n");
+  fs.mkdirSync(path.join(directory, "dist"));
+  fs.writeFileSync(path.join(directory, "dist", "bundle.md"), "Great question! Generated text.\n");
+
+  const files = collectFiles([directory]).map((item) => path.relative(directory, item.filename));
+  assert.deepEqual(files, ["README.md"]);
+});
+
 test("double-star ignore globs match root and nested files", () => {
   const directory = tempDir();
   fs.mkdirSync(path.join(directory, "docs"));
