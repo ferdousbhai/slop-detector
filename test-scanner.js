@@ -9,7 +9,7 @@ const extensionFile = (name) => path.join(__dirname, "extension", name);
 const SLOP_P = `I hope this message finds you well. This launch marks a pivotal moment, showcasing our robust and transformative vision for the evolving landscape. Let me know if you have any questions.`;
 const HUMAN_P = `We met at the coffee shop around nine and argued about the playoffs for an hour. Nobody changed their mind but the pastries were worth the trip anyway.`;
 
-function boot(html, { autoScanPages = true, supportsHighlights = true } = {}) {
+function boot(html, { autoScanPages = true, supportsHighlights = true, orphaned = false } = {}) {
   const dom = new JSDOM(`<!doctype html><body>${html}</body>`, {
     url: "https://example.com/",
     runScripts: "outside-only",
@@ -58,6 +58,8 @@ function boot(html, { autoScanPages = true, supportsHighlights = true } = {}) {
     },
     runtime: {
       sendMessage: (message) => {
+        // An orphaned content script gets a synchronous throw, not a rejected promise.
+        if (orphaned) throw new Error("Extension context invalidated.");
         messages.push(message);
         return Promise.resolve();
       },
@@ -89,6 +91,32 @@ test("slop paragraph gets underline ranges on the exact phrases", async () => {
   assert.ok(texts.some((t) => /finds you well/i.test(t)), "opener should be marked");
   assert.ok(texts.some((t) => /pivotal moment/i.test(t)), "puffery should be marked");
   assert.ok(!texts.some((t) => /coffee shop|playoffs|pastries/i.test(t)), "human text must be untouched");
+});
+
+test("phrases split across inline elements are still marked", async () => {
+  const lead = "everyone here has read the memo already so tell me what do you think";
+  const rest = "Great question about the plan today friend and we move on";
+  const { w } = boot(`<p><span>${lead}</span> <span>${rest}</span></p>`);
+  await tick();
+  assert.deepStrictEqual(highlightedTexts(w), ["Great question"]);
+});
+
+test("SVG text is skipped", async () => {
+  const { messages, w } = boot(`<div><svg><text>${SLOP_P}</text></svg></div>`);
+  await tick();
+  assert.strictEqual(highlightedTexts(w).length, 0);
+  assert.strictEqual(lastFindingCount(messages), 0);
+});
+
+test("an orphaned extension context tears down instead of throwing on every mutation", async () => {
+  const { w, observerStats } = boot(`<p id="draft">${SLOP_P}</p>`, { orphaned: true });
+  await tick();
+  assert.strictEqual(observerStats.created, 0, "no observer may be attached to a dead context");
+  assert.strictEqual(highlightedTexts(w).length, 0);
+
+  w.document.getElementById("draft").firstChild.nodeValue = `${HUMAN_P} ${SLOP_P}`;
+  await tick();
+  assert.strictEqual(highlightedTexts(w).length, 0);
 });
 
 test("highlight styling is packaged without adding page DOM nodes", async () => {

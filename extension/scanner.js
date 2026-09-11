@@ -13,6 +13,7 @@
   let highlight = null;
   let allRanges = [];
   let lastReportedCount = null;
+  let messagingAvailable = true;
 
   const highlightSupported = typeof Highlight !== "undefined" && typeof CSS !== "undefined" && CSS.highlights;
 
@@ -25,9 +26,11 @@
   function collectBlocks(root) {
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
       acceptNode(n) {
-        if (!n.nodeValue || !n.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+        /* Whitespace-only nodes are kept so inline siblings stay word-separated in lintBlock. */
+        if (!n.nodeValue) return NodeFilter.FILTER_REJECT;
         for (let el = n.parentElement; el; el = el.parentElement) {
-          if (SKIP_TAGS.has(el.tagName) || el.isContentEditable || el.getAttribute("aria-hidden") === "true") {
+          /* tagName is uppercase only for HTML-namespaced elements; SVG reports its authored case. */
+          if (SKIP_TAGS.has(el.tagName.toUpperCase()) || el.isContentEditable || el.getAttribute("aria-hidden") === "true") {
             return NodeFilter.FILTER_REJECT;
           }
         }
@@ -95,12 +98,20 @@
   }
 
   function reportFindingCount() {
-    if (allRanges.length === lastReportedCount) return;
+    if (!messagingAvailable || allRanges.length === lastReportedCount) return;
     lastReportedCount = allRanges.length;
-    chrome.runtime.sendMessage({ type: "slop:finding-count", count: allRanges.length }).catch(() => {
-      /* The extension may be reloading. The next scan reports again. */
-      lastReportedCount = null;
-    });
+    try {
+      chrome.runtime.sendMessage({ type: "slop:finding-count", count: allRanges.length }).catch(() => {
+        /* The extension may be reloading. The next scan reports again. */
+        lastReportedCount = null;
+      });
+    } catch {
+      /* An orphaned content script throws synchronously, so tear down once instead of on every mutation.
+         stopScan's own report call returns on the flag above and cannot re-enter this throw. */
+      messagingAvailable = false;
+      scanEnabled = false;
+      stopScan();
+    }
   }
 
   function isLiveRange(range) {
@@ -145,7 +156,8 @@
       CSS.highlights.set("slop-mark", highlight);
     }
     scan();
-    ensureObserver();
+    /* scan() disables scanning when the extension context is gone; do not attach an observer to a dead context. */
+    if (scanEnabled) ensureObserver();
   }
 
   function stopScan() {
