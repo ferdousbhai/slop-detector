@@ -101,7 +101,8 @@ test("source scanning checks comments, strings, and JSX text without linting ide
     "const robust = true;",
     "// Great question! This helper lets us delve into parsing.",
     "const label = \"Unlock your full potential today\";",
-    "const view = <p>This product stands as a testament to our vision.</p>;",
+    "const view = <p>Don't worry, this product stands as a testament to our vision.</p>;",
+    "export const seamless = robust;",
   ].join("\n");
   const diagnostics = lintText(text, {
     filename: "page.tsx",
@@ -112,6 +113,7 @@ test("source scanning checks comments, strings, and JSX text without linting ide
   assert.ok(diagnostics.some((item) => item.ruleId === "puffery" && item.line === 3));
   assert.ok(diagnostics.some((item) => item.ruleId === "puffery" && item.line === 4));
   assert.ok(!diagnostics.some((item) => item.text === "robust" && item.line === 1));
+  assert.ok(!diagnostics.some((item) => item.line === 5), "an apostrophe must not desync the tokenizer");
 });
 
 test("repository collection uses git files and excludes ignored content", () => {
