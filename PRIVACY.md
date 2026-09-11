@@ -2,9 +2,9 @@
 
 _Last updated: August 27, 2026_
 
-Slop Detector ships as a Chrome extension and an npm CLI. Detection in both
-runs locally with deterministic pattern matching. Slop Detector does not run a
-model, contact a server, or include analytics or telemetry.
+Slop Detector ships as a Chrome extension. Detection runs locally with
+deterministic pattern matching. Slop Detector does not run a model, contact a
+server, or include analytics or telemetry.
 
 ## Chrome extension
 
@@ -29,10 +29,12 @@ The extension persistently stores one `autoScanPages` on/off preference in
 - The `<all_urls>` content script reads visible text so it can underline local
   findings. It does not hide, replace, or upload page content.
 
-## npm CLI
+## Repository CLI
 
-The CLI reads only the paths or stdin supplied to it. It does not transmit file
-contents, assistant output, diagnostics, or configuration.
+The repository also carries a command-line tool used for development in this
+source tree; it is not a published package. It reads only the paths or stdin
+supplied to it. It does not transmit file contents, assistant output,
+diagnostics, or configuration.
 
 ## Changes
 

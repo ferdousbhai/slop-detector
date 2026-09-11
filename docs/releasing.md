@@ -6,7 +6,8 @@ Chrome Web Store remain manual.
 
 ## Prepare a version
 
-Update `extension/manifest.json` to the next version, then run:
+Update `extension/manifest.json` and `package.json` to the next version, then
+run:
 
 ```bash
 npm ci
@@ -55,5 +56,5 @@ manual.
 
 - If the tag workflow fails, fix the source, bump to a new version, and create a
   new tag. Do not move a published release tag.
-- If Chrome rejects an upload, fix the extension, increment the manifest
-  version, and release again.
+- If Chrome rejects an upload, fix the extension, increment the manifest and
+  package versions, and release again.
