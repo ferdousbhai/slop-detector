@@ -303,7 +303,7 @@
     return { score, verdict, label, findings, wordCount: wc };
   }
 
-  const api = { analyze, rules };
+  const api = { analyze };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   globalThis.SlopEngine = api;
 })();

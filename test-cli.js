@@ -132,7 +132,7 @@ test("repository collection uses git files and excludes ignored content", () => 
   fs.writeFileSync(outside, "I hope this message finds you well.\n");
   fs.symlinkSync(outside, path.join(directory, "linked.md"));
 
-  const files = collectFiles([directory]).map((item) => path.basename(item.filename));
+  const files = collectFiles([directory]).map((item) => path.basename(item));
   assert.deepEqual(files, [".gitignore", "README.md"]);
   assert.ok(lintFile(path.join(directory, "README.md")).some((item) => item.ruleId === "chatbot-phrase"));
 });
@@ -145,7 +145,7 @@ test("a repository nested under an ignored directory name is still linted", () =
   fs.mkdirSync(path.join(directory, "dist"));
   fs.writeFileSync(path.join(directory, "dist", "bundle.md"), "Great question! Generated text.\n");
 
-  const files = collectFiles([directory]).map((item) => path.relative(directory, item.filename));
+  const files = collectFiles([directory]).map((item) => path.relative(directory, item));
   assert.deepEqual(files, ["README.md"]);
 });
 
@@ -157,7 +157,7 @@ test("double-star ignore globs match root and nested files", () => {
   fs.writeFileSync(path.join(directory, "notes.txt"), "Keep this file.\n");
 
   const files = collectFiles([directory], { ignore: ["**/*.md"] })
-    .map((item) => path.relative(directory, item.filename));
+    .map((item) => path.relative(directory, item));
   assert.deepEqual(files, ["notes.txt"]);
 });
 

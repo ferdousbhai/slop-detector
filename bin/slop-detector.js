@@ -156,7 +156,7 @@ function runCheck(options, config) {
 
   const diagnostics = [];
   let filesChecked = 0;
-  for (const { filename } of files) {
+  for (const filename of files) {
     try {
       const result = lintFileResult(filename, { rules: config.rules });
       if (result.checked) filesChecked += 1;

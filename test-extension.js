@@ -62,7 +62,7 @@ test("background maps scanner counts to tab-scoped action state", async () => {
       openPopup: async () => {},
     },
   };
-  vm.runInNewContext(fs.readFileSync(extensionFile("background.js"), "utf8"), { chrome, Number, Promise });
+  vm.runInNewContext(fs.readFileSync(extensionFile("background.js"), "utf8"), { chrome });
 
   onMessage.dispatch({ type: "slop:finding-count", count: 12 }, { tab: { id: 7 } });
   await tick();
@@ -99,7 +99,7 @@ test("context-menu selections open in the extension popup", async () => {
       openPopup: async (options) => opened.push(options),
     },
   };
-  vm.runInNewContext(fs.readFileSync(extensionFile("background.js"), "utf8"), { chrome, Number, Promise });
+  vm.runInNewContext(fs.readFileSync(extensionFile("background.js"), "utf8"), { chrome });
 
   onClicked.dispatch({ menuItemId: "slop-check-selection", selectionText: "  Great question!  " }, { windowId: 9 });
   await tick();

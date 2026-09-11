@@ -2,4 +2,3 @@ node_modules/
 dist/
 *.zip
 .DS_Store
-slop-detector-chrome-store-*.zip
