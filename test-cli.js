@@ -76,6 +76,28 @@ test("Markdown scanning ignores fenced code but lints prose", () => {
   assert.ok(diagnostics.every((item) => item.line === 1));
 });
 
+test("Markdown list items are separate blocks, as <li> is in the browser", () => {
+  const text = [
+    "The extension can:",
+    "",
+    "- underline findings without wrapping or recoloring page text;",
+    "- check pasted drafts inside its own popup window;",
+    "- check selected text from the right-click context menu; and",
+    "- show the page finding count on its toolbar badge.",
+    "",
+    "- It's not just a tool, it's a paradigm shift.",
+  ].join("\n");
+  const diagnostics = lintText(text, {
+    filename: "README.md",
+    segments: segmentsForFile("README.md", text),
+  });
+
+  assert.equal(diagnostics.filter((item) => item.ruleId === "uniform-sentences").length, 0);
+  const contrast = diagnostics.find((item) => item.ruleId === "binary-contrast");
+  assert.equal(contrast.line, 8);
+  assert.equal(contrast.column, 3);
+});
+
 test("HTML scanning checks visible text and content attributes but skips code and scripts", () => {
   const text = [
     '<main class="robust workflow" title="Unlock your full potential today">',
