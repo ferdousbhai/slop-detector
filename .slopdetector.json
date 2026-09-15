@@ -1,0 +1,9 @@
+{
+  "ignore": [
+    "extension/engine.js",
+    "test*.js",
+    "store-assets/**",
+    "STORE_LISTING.md",
+    "LICENSE"
+  ]
+}

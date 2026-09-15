@@ -102,6 +102,11 @@ npm run check
 npm test
 ```
 
+`npm run check` lints this repository with its own CLI. `.slopdetector.json`
+exempts the files that hold slop on purpose: the rule catalog in
+`extension/engine.js`, the test fixtures, the store listing and promo copy that
+quote the patterns they describe, and the MIT license text.
+
 ## Release
 
 The extension manifest owns the release version. Tagging a matching `vX.Y.Z`

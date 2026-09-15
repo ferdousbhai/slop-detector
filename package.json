@@ -11,7 +11,8 @@
     "npm": ">=12"
   },
   "scripts": {
-    "check": "node --check bin/slop-detector.js && node --check lib/linter.js && node --check extension/background.js && node --check extension/engine.js && node --check extension/popup.js && node --check extension/scanner.js && npm run check:versions",
+    "check": "node --check bin/slop-detector.js && node --check lib/linter.js && node --check extension/background.js && node --check extension/engine.js && node --check extension/popup.js && node --check extension/scanner.js && npm run check:versions && npm run lint",
+    "lint": "node bin/slop-detector.js .",
     "check:versions": "node scripts/check-versions.js",
     "test": "node --test test.js test-scanner.js test-extension.js test-cli.js",
     "package:chrome": "bash scripts/package-chrome.sh"
