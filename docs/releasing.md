@@ -41,7 +41,8 @@ draft GitHub Release. Review the notes and artifacts, then publish the release.
 ## Publish Chrome
 
 Upload `slop-detector-chrome-store-v1.1.1.zip` from the GitHub Release to the
-existing Chrome Web Store item. The ZIP already has `manifest.json` at its root.
+existing Chrome Web Store item, `ifigliidkcoojgohcbmmaonifoppnmoh`. The ZIP
+already has `manifest.json` at its root.
 Complete the listing and privacy review, then submit the update.
 
 Chrome requires an uploaded manifest version to be higher than the current

@@ -6,6 +6,8 @@ text, and never sends content to a model or network service.
 
 ## Browser extension
 
+Install it from the [Chrome Web Store](https://chromewebstore.google.com/detail/slop-detector/ifigliidkcoojgohcbmmaonifoppnmoh).
+
 The extension can:
 
 - underline findings without wrapping, replacing, or recoloring page text;
