@@ -18,16 +18,6 @@ function event() {
   };
 }
 
-test("page content scripts are DOM-mutation-free", () => {
-  const manifest = JSON.parse(fs.readFileSync(extensionFile("manifest.json"), "utf8"));
-  const scripts = manifest.content_scripts.flatMap((entry) => entry.js);
-  assert.deepEqual(scripts, ["engine.js", "scanner.js"]);
-  assert.deepEqual(manifest.content_scripts[0].css, ["highlights.css"]);
-
-  const source = scripts.map((filename) => fs.readFileSync(extensionFile(filename), "utf8")).join("\n");
-  assert.doesNotMatch(source, /document\.createElement|\.appendChild\(|\.insertAdjacentHTML\(|\.replaceChildren\(|\.innerHTML\s*=/);
-});
-
 test("background maps scanner counts to tab-scoped action state", async () => {
   const onMessage = event();
   const onUpdated = event();

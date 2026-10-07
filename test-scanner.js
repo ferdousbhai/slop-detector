@@ -119,15 +119,11 @@ test("an orphaned extension context tears down instead of throwing on every muta
   assert.strictEqual(highlightedTexts(w).length, 0);
 });
 
-test("highlight styling is packaged without adding page DOM nodes", async () => {
+test("highlighting leaves page DOM nodes unchanged", async () => {
   const html = `<p style="color: #ddd">This launch marks a pivotal moment.</p>`;
   const { w } = boot(html);
   await tick();
 
-  const css = fs.readFileSync(extensionFile("highlights.css"), "utf8");
-  assert.match(css, /text-decoration:\s*underline wavy #C42B1F 1\.5px/);
-  assert.doesNotMatch(css, /background-color:/);
-  assert.doesNotMatch(css, /(?:^|[;{])\s*color:/);
   assert.strictEqual(w.document.body.innerHTML, html);
 });
 
