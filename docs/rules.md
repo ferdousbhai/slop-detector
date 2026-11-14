@@ -23,7 +23,7 @@ suite fails if this table and the engine disagree.
 | `faux-insight` | error | A claim to know what others miss | "What most people get wrong" |
 | `filler-phrase` | warning | Phrases with a shorter equivalent | "in order to", "at this point in time" |
 | `fragment-cadence` | warning | Runs of clipped fragments, counts as sentences, lists drummed on one word | "Six legs. One GPU, one sampler, one question set." |
-| `hedging-ratio` | warning | Two or more hedges at 3 or more per 100 words | "perhaps", "arguably", "typically" |
+| `hedging-ratio` | warning | Two or more hedges at 3 or more per 100 words, in 20 words or more | "perhaps", "arguably", "typically" |
 | `inflated-verb` | warning | A grand verb where "is" or "has" would do | "serves as", "boasts" |
 | `ing-explainer` | error | A trailing "-ing" clause that asserts significance | ", highlighting the team's commitment" |
 | `label-first` | warning | A bold label of two to six words, or a counted announcement, ahead of its content | "**Fast startup:** …", "Two things:" |
@@ -52,10 +52,12 @@ Some rules need context that plain text does not carry.
   item as its own block, so there it catches emoji lines split by line breaks
   and misses emoji that open separate list items.
 
+URLs are never read as prose, in the browser or the linter.
+
 The repository linter reads comments and string literals in source files. It
-skips Markdown inline code, link targets, and bare URLs, and it treats a file
-with no extension as prose only when it has a document name such as `README`
-or `CHANGELOG`.
+skips Markdown inline code, fenced and indented code blocks, link targets, and
+`<textarea>` contents, and it treats a file with no extension as prose only
+when it has a document name such as `README` or `CHANGELOG`.
 
 ## Minimum length
 

@@ -338,7 +338,7 @@
       run(text) {
         return findAll(
           text,
-          /,\s+(?:highlighting|underscoring|showcasing|fostering|emphasizing|demonstrating|cementing|symbolizing|cultivating|encompassing|solidifying|underlining|illustrating)\b[^.!?\n]{0,60}/gi,
+          /,\s+(?:highlighting|underscoring|showcasing|fostering|emphasizing|demonstrating|cementing|symbolizing|cultivating|encompassing|solidifying|underlining|illustrating)\b(?:[^.!?\n]{0,60}(?=[\s.,;:!?)\]]|$)|[^.!?\n]{0,60}\b)/gi,
           (m) => ({
             start: m.index, end: m.index + m[0].length,
             ruleId: "ing-explainer",
@@ -552,7 +552,11 @@
 
   function analyze(source, options = {}) {
     /* Typographic apostrophes and no-break spaces are one character each, so offsets stay valid. */
-    const text = source.replace(/[\u2018\u2019]/g, "'").replace(/\u00A0/g, " ");
+    /* A URL is an address, not prose, and blanking it keeps every offset where it was. */
+    const text = source
+      .replace(/[\u2018\u2019]/g, "'")
+      .replace(/\u00A0/g, " ")
+      .replace(/\b(?:https?:\/\/|www\.)[^\s<>"'`)\]]+/gi, (url) => " ".repeat(url.length));
     const collected = [];
     for (const rule of rules) collected.push(...rule.run(text, options));
     for (const finding of collected) Object.assign(finding, RULES[finding.ruleId]);

@@ -232,6 +232,19 @@ test("source scanning reads SQL comments, skips character literals, and blanks s
   assert.deepStrictEqual(lint("a.js", `const s = "Thanks.\\nFeel free to ask";\n`), ["Feel free to"]);
 });
 
+test("URLs in code, JSON, and HTML are not linted", () => {
+  const lint = (name, text) => lintText(text, { filename: name, segments: segmentsForFile(name, text) }).map((d) => d.text);
+  assert.deepStrictEqual(lint("e.js", `const DOCS = "https://developer.chrome.com/docs/extensions/enhanced-safe-browsing";\n// See https://example.com/robust-design for details.\n`), []);
+  assert.deepStrictEqual(lint("g.json", `{"homepage": "https://github.com/acme/seamless-sync"}\n`), []);
+  assert.deepStrictEqual(lint("f.html", `<p>Our docs live at https://example.com/robust-guide for every user.</p><textarea>Moreover, this is sample input.</textarea>`), []);
+});
+
+test("indented Markdown code blocks are skipped, but indented list continuations are not", () => {
+  const lint = (text) => lintText(text, { filename: "a.md", segments: segmentsForFile("a.md", text) }).map((d) => d.text);
+  assert.deepStrictEqual(lint("Configure the client first:\n\n    client = Client(retries=3)  # robust retry settings\n    client.enhance_logging()\n\nThen delve in.\n"), ["delve"]);
+  assert.deepStrictEqual(lint("- First item of the list\n\n    A robust continuation of that item.\n"), ["robust"]);
+});
+
 test("Markdown fences open and close only on real fence lines", () => {
   const lint = (text) => lintText(text, { filename: "a.md", segments: segmentsForFile("a.md", text) }).map((d) => d.text);
   assert.deepStrictEqual(lint("\`\`\`js\`\`\` is inline code here.\n\nLet us delve into it.\n"), ["delve"]);

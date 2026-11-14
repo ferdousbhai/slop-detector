@@ -290,3 +290,18 @@ test("typographic apostrophes and no-break spaces match like plain ones", () => 
   assert.deepStrictEqual(found.map((f) => f.ruleId), ["chatbot-phrase", "chatbot-phrase", "binary-contrast"]);
   assert.strictEqual(text.slice(found[0].start, found[0].end), "I’d be happy to");
 });
+
+test("URLs are not prose, and spans end on a word", () => {
+  for (const text of [
+    "See https://example.com/robust-seamless-design for every detail of the plan.",
+    "The docs live at www.example.com/delve-guide and nowhere else today.",
+  ]) assert.deepStrictEqual(ruleIds(text), [], text);
+  for (const text of [
+    "The rollout shipped on time, underscoring the organizational commitment to reliability engineering practices across teams.",
+    "This launch went out, showcasing our robust and transformative vision for the evolving landscape.",
+  ]) {
+    const finding = analyze(text).findings.find((f) => f.ruleId === "ing-explainer");
+    assert.ok(finding, text);
+    assert.match(text.slice(finding.end, finding.end + 1), /^(?:[\s.,;:!?]|)$/, `span ends mid-word: ${text.slice(finding.start, finding.end)}`);
+  }
+});
