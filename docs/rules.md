@@ -18,7 +18,7 @@ suite fails if this table and the engine disagree.
 | `dramatic-fragment` | error | Fragment pairs played for effect | "That's it. That's the whole thing." |
 | `dressed-metaphor` | warning | A costume or structural metaphor in place of the mechanism | "wearing the costume of a style fix" |
 | `em-dash-density` | warning | 2.5 or more em dashes per 100 words | |
-| `emoji-bullets` | error | Two or more lines that open with an emoji | "🚀 Launch the site" |
+| `emoji-bullets` | error | Two or more lines in one block that open with an emoji | "🚀 Launch the site" |
 | `essay-connective` | error | Formal transitions that rarely appear in conversation | "Moreover", "Furthermore" |
 | `faux-insight` | error | A claim to know what others miss | "What most people get wrong" |
 | `filler-phrase` | warning | Phrases with a shorter equivalent | "in order to", "at this point in time" |
@@ -34,7 +34,7 @@ suite fails if this table and the engine disagree.
 | `significance-designation` | warning | Telling the reader which part matters | "It is the leg that answers the actual question." |
 | `strawman-knockdown` | error | A wrong reading supplied so it can be rejected | "…is the obvious reading, and it is wrong." |
 | `throat-clearing` | error | Openers that delay the point or announce sincerity | "Here's the thing", "Let's be honest" |
-| `triad-adjectives` | warning | Three adjectives in a row | "fast, reliable, and scalable" |
+| `triad-adjectives` | warning | Three adjectives in a row | "innovative, scalable, and dynamic" |
 | `uniform-sentences` | warning | Five or more sentences of nearly equal length | |
 | `vague-attribution` | error | A claim attributed to nobody | "Experts believe", "Studies show" |
 
@@ -47,6 +47,14 @@ Some rules need context that plain text does not carry.
   the same for heading tags.
 - `label-first` reads Markdown `**bold**` on its own. In the browser the scanner
   reports a bold run that opens a block. The HTML linter does not.
+- `emoji-bullets` compares lines inside one block. The browser sees each list
+  item as its own block, so there it catches emoji lines split by line breaks
+  and misses emoji that open separate list items.
+
+The repository linter reads comments and string literals in source files. It
+skips Markdown inline code, link targets, and bare URLs, and it treats a file
+with no extension as prose only when it has a document name such as `README`
+or `CHANGELOG`.
 
 ## Minimum length
 

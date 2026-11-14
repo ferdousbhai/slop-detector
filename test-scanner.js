@@ -242,3 +242,17 @@ test("a bold label that opens a block is marked", async () => {
   await tick();
   assert.deepStrictEqual(highlightedTexts(w), ["Fast startup:"]);
 });
+
+test("a <br> separates lines instead of gluing words together", async () => {
+  const lead = "we met at the coffee shop around nine and argued about the playoffs and then went home.";
+  const { w } = boot(`<p>${lead}<br>In conclusion, the pastries were worth the trip.</p><p>🚀 Launch the site for everyone on the team today<br>✅ Test everything twice before the big release goes out</p>`);
+  await tick();
+  assert.deepStrictEqual(highlightedTexts(w), ["In conclusion", "🚀 ", "✅ "]);
+});
+
+test("text outside the usual block tags is still scanned", async () => {
+  const { w } = boot(`<main>${SLOP_P}</main><span>${SLOP_P}</span><table><tr><th>${SLOP_P}</th></tr></table>`);
+  await tick();
+  const openers = highlightedTexts(w).filter((t) => /finds you well/i.test(t));
+  assert.strictEqual(openers.length, 3);
+});

@@ -8,10 +8,12 @@ const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 const {
   collectFiles,
-  lintFile,
+  lintFileResult,
   lintText,
   segmentsForFile,
 } = require("./lib/linter.js");
+
+const lintFile = (filename) => lintFileResult(filename).diagnostics;
 
 const cli = path.join(__dirname, "bin", "slop-detector.js");
 const temporaryDirectories = [];
@@ -201,6 +203,63 @@ test("invalid config shapes produce actionable errors", () => {
   });
   assert.equal(result.status, 2);
   assert.match(result.stderr, /"ignore" must be an array of strings/);
+});
+
+test("source scanning follows each language's own comment and string syntax", () => {
+  const cases = {
+    "deploy.sh": "cp build_out/* /srv/www/\nrobust=1\nutilize \"$robust\"\n",
+    "ci.yml": "name: Don't break main\njobs:\n  robust-build:\n    steps:\n      - run: make leverage\n",
+    "lib.rs": "fn pick<'a>(robust: &'a str, seamless: &'a str) -> &'a str { robust }\n",
+    "App.js": "<p>Don't worry about it</p>\nconst robust = true;\nconst seamless = robust;\n",
+    "cmp.tsx": "const ok = a > robust && seamless < b;\n",
+    "Makefile": "robust: seamless.o\n\tcc -o robust seamless.o\n",
+  };
+  for (const [name, text] of Object.entries(cases)) {
+    assert.deepEqual(lintText(text, { filename: name, segments: segmentsForFile(name, text) }), [], name);
+  }
+  const jsx = "const el = <p>We delve into the plan</p>;\n// A robust comment here.\n";
+  const found = lintText(jsx, { filename: "cmp.tsx", segments: segmentsForFile("cmp.tsx", jsx) });
+  assert.deepEqual(found.map((d) => d.text), ["delve", "robust"]);
+});
+
+test("Markdown inline code and link targets are not prose", () => {
+  const text = "Run `npm run leverage` and see [the guide](https://example.com/robust-setup) to delve deeper.\n";
+  const found = lintText(text, { filename: "doc.md", segments: segmentsForFile("doc.md", text) });
+  assert.deepEqual(found.map((d) => [d.text, d.column]), [["delve", text.indexOf("delve") + 1]]);
+});
+
+test("ignore patterns resolve against the config directory however paths are passed", () => {
+  const directory = tempDir();
+  fs.mkdirSync(path.join(directory, "docs"));
+  fs.writeFileSync(path.join(directory, "docs", "rules.md"), "Great question about this one.\n");
+  fs.writeFileSync(path.join(directory, "notes.md"), "Great question about this one.\n");
+  const run = (ignore, ...args) => {
+    fs.writeFileSync(path.join(directory, ".slopdetector.json"), JSON.stringify({ ignore }));
+    return spawnSync(process.execPath, [cli, ...args], { cwd: directory, encoding: "utf8" }).status;
+  };
+  for (const target of [".", "docs", "docs/rules.md"]) {
+    assert.equal(run(["docs/rules.md", "notes.md"], target), 0, `file pattern, target ${target}`);
+    assert.equal(run(["docs", "notes.md"], target), 0, `directory pattern, target ${target}`);
+  }
+  assert.equal(run([], "docs/rules.md"), 1);
+});
+
+test("a repository reached through a symlinked directory is still linted", () => {
+  const directory = tempDir();
+  fs.mkdirSync(path.join(directory, "real", "repo"), { recursive: true });
+  spawnSync("git", ["init", "-q", path.join(directory, "real", "repo")]);
+  fs.writeFileSync(path.join(directory, "real", "repo", "README.md"), "Great question about this one.\n");
+  fs.symlinkSync(path.join(directory, "real"), path.join(directory, "link"));
+  const files = collectFiles([path.join(directory, "link", "repo")]);
+  assert.deepEqual(files.map((file) => path.basename(file)), ["README.md"]);
+});
+
+test("options that take a value reject a missing or empty one", () => {
+  for (const args of [["--max-warnings="], ["--max-warnings"], ["--config", "--quiet"], ["--format="]]) {
+    const result = spawnSync(process.execPath, [cli, ...args], { cwd: tempDir(), encoding: "utf8" });
+    assert.equal(result.status, 2, args.join(" "));
+    assert.match(result.stderr, /requires a value/, args.join(" "));
+  }
 });
 
 test("a misspelled rule id in config is rejected instead of ignored", () => {

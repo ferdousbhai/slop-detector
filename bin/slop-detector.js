@@ -56,6 +56,8 @@ function readStdin() {
   return Buffer.concat(chunks, total).toString("utf8");
 }
 
+const VALUE_OPTIONS = new Map([["--config", "config"], ["--format", "format"], ["--max-warnings", "maxWarnings"]]);
+
 function parseArgs(argv) {
   const options = { command: "check", paths: [], format: "stylish", quiet: false };
   let i = 0;
@@ -70,12 +72,13 @@ function parseArgs(argv) {
     if (arg === "-h" || arg === "--help") options.help = true;
     else if (arg === "-v" || arg === "--version") options.version = true;
     else if (arg === "--quiet") options.quiet = true;
-    else if (arg === "--config") options.config = argv[i++] ?? fail("--config requires a path");
-    else if (arg.startsWith("--config=")) options.config = arg.slice("--config=".length);
-    else if (arg === "--format") options.format = argv[i++] ?? fail("--format requires a value");
-    else if (arg.startsWith("--format=")) options.format = arg.slice("--format=".length);
-    else if (arg === "--max-warnings") options.maxWarnings = Number(argv[i++] ?? fail("--max-warnings requires a number"));
-    else if (arg.startsWith("--max-warnings=")) options.maxWarnings = Number(arg.slice("--max-warnings=".length));
+    else if (VALUE_OPTIONS.has(arg) || VALUE_OPTIONS.has(arg.split("=")[0])) {
+      const inline = arg.includes("=");
+      const name = inline ? arg.slice(0, arg.indexOf("=")) : arg;
+      const value = inline ? arg.slice(arg.indexOf("=") + 1) : argv[i++];
+      if (value === undefined || value === "" || (!inline && value.startsWith("-"))) fail(`${name} requires a value`);
+      options[VALUE_OPTIONS.get(name)] = name === "--max-warnings" ? Number(value) : value;
+    }
     else if (arg.startsWith("-")) fail(`unknown option ${arg}`);
     else options.paths.push(arg);
   }
@@ -149,7 +152,7 @@ function runCheck(options, config) {
   const inputs = options.paths.length > 0 ? options.paths : ["."];
   let files;
   try {
-    files = collectFiles(inputs, { ignore: config.ignore });
+    files = collectFiles(inputs, { ignore: config.ignore, root: config.root });
   } catch (error) {
     fail(error.message);
   }

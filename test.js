@@ -187,3 +187,44 @@ test("every rule has one severity and an instruction, and docs/rules.md lists it
     assert.ok(table.includes(`| \`${id}\` | ${level} |`), `docs/rules.md is missing or mislabels ${id}`);
   }
 });
+
+test("ordinary sentences that share a shape with a tic stay clean", () => {
+  const clean = [
+    "The file was not found. It was deleted by the cleanup job yesterday.",
+    "The server is not running. It is started by systemd at boot.",
+    "The package is not installed.\n\nIt is required by the build step.",
+    "This is not just a problem for the parser; its tests break too.",
+    "Do not simply delete the file; it may still be needed by other users.",
+    "What was the result? I never heard back from them.",
+    "Compare the result: it should print 42.",
+    "She joined the lab as an AI researcher in 2019.",
+    "We toured Germany, Italy, and Hungary last summer.",
+    "The input is parsed, validated, and stored.",
+    "It is the tallest building in the world.",
+    "Run the test harness before you push.",
+    "Set the Kerberos realm in krb5.conf.",
+    "My mother says so.",
+    "I thought it would work but it didn't.",
+    "Readers want not only the facts but also the reasons behind them.",
+  ];
+  for (const text of clean) assert.deepStrictEqual(ruleIds(text), [], text);
+});
+
+test("emoji bullets cover variation selectors and joined sequences, and mark only the bullet", () => {
+  for (const text of ["⚠️ Check the logs first\n✔️ Run the tests again", "👨‍💻 Write the code\n👩‍🔬 Run the experiment"]) {
+    const found = analyze(text).findings.filter((f) => f.ruleId === "emoji-bullets");
+    assert.strictEqual(found.length, 2, text);
+    for (const f of found) assert.ok(!/[A-Za-z]/.test(text.slice(f.start, f.end)), "span must stop before the text");
+  }
+});
+
+test("whitespace runs do not slow analysis down", () => {
+  const inputs = [
+    "# a" + " ".repeat(20000) + "b",
+    "one two three four five six seven." + "\n        ".repeat(20000) + "tail",
+    "word" + " ".repeat(100000) + "word. Next one.",
+  ];
+  const started = Date.now();
+  for (const text of inputs) analyze(text);
+  assert.ok(Date.now() - started < 2000, `took ${Date.now() - started} ms`);
+});

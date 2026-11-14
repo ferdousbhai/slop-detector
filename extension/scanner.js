@@ -4,7 +4,10 @@
   "use strict";
 
   const SKIP_TAGS = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "TEXTAREA", "INPUT", "SELECT", "CODE", "PRE", "SVG", "IFRAME"]);
-  const BLOCK_TAGS = new Set(["P", "DIV", "LI", "BLOCKQUOTE", "ARTICLE", "SECTION", "TD", "DD", "FIGCAPTION", "H1", "H2", "H3", "H4", "H5", "H6"]);
+  const BLOCK_TAGS = new Set([
+    "P", "DIV", "LI", "BLOCKQUOTE", "ARTICLE", "SECTION", "MAIN", "HEADER", "FOOTER", "ASIDE",
+    "TD", "TH", "DD", "DT", "FIGCAPTION", "SUMMARY", "H1", "H2", "H3", "H4", "H5", "H6",
+  ]);
   const MIN_WORDS = 15;
   /* A heading is short by nature, and the heading rule reads nothing but its wording. */
   const MIN_HEADING_WORDS = 3;
@@ -24,14 +27,18 @@
   function blockOf(node) {
     let el = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
     while (el && !BLOCK_TAGS.has(el.tagName)) el = el.parentElement;
-    return el;
+    /* Text that sits straight under <body>, or under inline wrappers only, still belongs to a block. */
+    return el ?? (document.body.contains(node) ? document.body : null);
   }
 
   function collectBlocks(root) {
-    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT, {
       acceptNode(n) {
-        /* Whitespace-only nodes are kept so inline siblings stay word-separated in lintBlock. */
-        if (!n.nodeValue) return NodeFilter.FILTER_REJECT;
+        /* A <br> is the only element collected: it stands for the line break the flattened text needs. */
+        if (n.nodeType === Node.ELEMENT_NODE) {
+          if (n.tagName !== "BR") return NodeFilter.FILTER_SKIP;
+        } else if (!n.nodeValue) return NodeFilter.FILTER_REJECT;
+        /* Whitespace-only text nodes are kept so inline siblings stay word-separated in lintBlock. */
         for (let el = n.parentElement; el; el = el.parentElement) {
           /* tagName is uppercase only for HTML-namespaced elements; SVG reports its authored case. */
           if (SKIP_TAGS.has(el.tagName.toUpperCase()) || el.isContentEditable || el.getAttribute("aria-hidden") === "true") {
@@ -74,6 +81,10 @@
     let text = "";
     const offsets = [];
     for (const node of textNodes) {
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        text += "\n";
+        continue;
+      }
       offsets.push({ node, start: text.length, end: text.length + node.nodeValue.length });
       text += node.nodeValue;
     }

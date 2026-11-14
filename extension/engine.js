@@ -42,16 +42,39 @@
     return text.trim().split(/\s+/).filter(Boolean);
   }
 
-  /* A terminator only ends a sentence before whitespace, so "v1.2.3" and "3.5 seconds" stay whole.
-     A lone line break is a hard wrap and stays inside the sentence; a blank line, a list marker, or
-     a Markdown heading on the next line ends it. */
+  /* A lone line break is a hard wrap and stays inside its paragraph; a blank line, a list marker, or a
+     Markdown heading starts a new one. Walking lines keeps this linear on long runs of whitespace. */
+  function paragraphSpans(text) {
+    const out = [];
+    let start = -1;
+    let end = -1;
+    let offset = 0;
+    const flush = () => {
+      if (start !== -1) out.push({ start, end });
+      start = -1;
+    };
+    for (const line of text.split("\n")) {
+      const content = line.trim();
+      if (content === "") flush();
+      else {
+        if (/^(?:[-*+\u2022]|\d+[.)]|#{1,6})[ \t]/.test(content)) flush();
+        if (start === -1) start = offset + line.indexOf(content);
+        end = offset + line.indexOf(content) + content.length;
+      }
+      offset += line.length + 1;
+    }
+    flush();
+    return out;
+  }
+
+  /* A terminator only ends a sentence before whitespace, so "v1.2.3" and "3.5 seconds" stay whole. */
   function sentenceSpans(text) {
     const out = [];
-    const BREAK = String.raw`\n[ \t\r]*(?:\n|(?:[-*+\u2022]|\d+[.)]|#{1,6})[ \t])`;
-    const re = new RegExp(String.raw`\S(?:[^\n]|\n(?![ \t\r]*(?:\n|$|(?:[-*+\u2022]|\d+[.)]|#{1,6})[ \t])))*?(?:[.!?]+["'\u201D\u2019)\]]*(?=\s|$)|(?=\s*$|${BREAK}))`, "g");
-    let m;
-    while ((m = re.exec(text)) !== null) {
-      out.push({ start: m.index, end: m.index + m[0].length, text: m[0] });
+    for (const paragraph of paragraphSpans(text)) {
+      const body = text.slice(paragraph.start, paragraph.end);
+      for (const m of body.matchAll(/\S[^]*?(?:[.!?]+["'\u201D\u2019)\]]*(?=\s)|$)/g)) {
+        out.push({ start: paragraph.start + m.index, end: paragraph.start + m.index + m[0].length, text: m[0] });
+      }
     }
     return out;
   }
@@ -75,6 +98,12 @@
     return runs;
   }
 
+  /* "## Title ##" closes with hashes that are not part of the title. */
+  function withoutClosingHashes(title) {
+    const closing = /#+$/.exec(title);
+    return closing && /[ \t]/.test(title[closing.index - 1] ?? "") ? title.slice(0, closing.index).trimEnd() : title;
+  }
+
   function findAll(text, regex, make) {
     const out = [];
     let m;
@@ -95,7 +124,7 @@
     { id: "chatbot-phrase", p: /\byou'?re absolutely right\b/i, why: "Sycophantic tone." },
     { id: "chatbot-phrase", p: /\bcertainly!/i, why: "Assistant-speak." },
     { id: "chatbot-phrase", p: /\bof course!/i, why: "Assistant-speak." },
-    { id: "chatbot-phrase", p: /\bas an ai\b/i, why: "Literal AI disclosure." },
+    { id: "chatbot-phrase", p: /\bas an ai(?:,| (?:language |chat)?(?:model|assistant|system)\b)/i, why: "Literal AI disclosure." },
     { id: "chatbot-phrase", p: /\bi appreciate your patience\b/i, why: "Support-bot phrasing." },
     { id: "chatbot-phrase", p: /\bplease don'?t hesitate to\b/i, why: "Support-bot phrasing." },
     { id: "chatbot-phrase", p: /\b(?:hope (?:this|that) helps|let me know if (?:you need|there'?s) anything else|happy to (?:help|assist|clarify) (?:further|more|with anything else))\b[!.]*/i, why: "Assistant-style closing offer." },
@@ -134,7 +163,7 @@
     { id: "rhetorical-setup", p: /\bwhat if i told you\b/i, why: "Rhetorical setup." },
     { id: "rhetorical-setup", p: /\bthink about it:/i, why: "Rhetorical setup." },
     { id: "rhetorical-setup", p: /\bplot twist:/i, why: "Rhetorical setup." },
-    { id: "colon-reveal", p: /\b(?:the best part|the kicker|the catch|the twist|the result):\s/i, why: "Colon reveal — fake drama." },
+    { id: "colon-reveal", p: /(?:^|(?<=[.!?]["\'\u201D\u2019]?\s))(?:and |but )?(?:the best part|the kicker|the catch|the twist|the result):\s/im, why: "Colon reveal — fake drama." },
     { id: "dramatic-fragment", p: /\bthat'?s it\.\s+that'?s\b/i, why: "\u201CThat's it. That's the whole thing.\u201D fragment drama." },
 
     { id: "essay-connective", p: /\bmoreover\b/i, why: "Essay connective — rare in real chat." },
@@ -147,7 +176,7 @@
     { id: "filler-phrase", p: /\bat the end of the day\b/i, why: "Stock filler." },
     { id: "filler-phrase", p: /\bwhen it comes to\b/i, why: "Often-empty phrase." },
     { id: "filler-phrase", p: /\bat its core\b/i, why: "Often-empty phrase." },
-    { id: "filler-phrase", p: /\bin (?:today'?s|the) (?:world|age of)\b/i, why: "Often-empty phrase." },
+    { id: "filler-phrase", p: /\bin (?:today'?s world|the age of)\b/i, why: "Often-empty phrase." },
     { id: "filler-phrase", p: /\bthe (?:reality|truth) is\b/i, why: "Often-empty phrase." },
     { id: "filler-phrase", p: /\bgoing forward\b/i, why: "Often-empty phrase." },
 
@@ -158,7 +187,7 @@
     { id: "throat-clearing", p: /\bi (?:will not|won'?t) pretend\b/i, why: "Announced sincerity." },
     { id: "throat-clearing", p: /\blet'?s be (?:honest|real|clear)\b/i, why: "Announced sincerity." },
     { id: "throat-clearing", p: /\bhere'?s where it gets\b/i, why: "Staged reveal." },
-    { id: "rhetorical-setup", p: /\bthe (?:result|catch|problem|solution|answer|kicker|twist|best part|worst part|upshot|takeaway|reason|difference|secret|trick|outcome|bottom line|verdict|lesson)\?\s/i, why: "Self-answered question \u2014 state the answer." },
+    { id: "rhetorical-setup", p: /(?:^|(?<=[.!?]["\'\u201D\u2019]?\s))(?:and |but |so )?the (?:result|catch|problem|solution|answer|kicker|twist|best part|worst part|upshot|takeaway|reason|difference|secret|trick|outcome|bottom line|verdict|lesson)\?\s/im, why: "Self-answered question \u2014 state the answer." },
     { id: "filler-phrase", p: /\bat this point in time\b/i, why: "\u2192 \u201Cnow\u201D." },
     { id: "filler-phrase", p: /\bin the event that\b/i, why: "\u2192 \u201Cif\u201D." },
     { id: "filler-phrase", p: /\bhas the ability to\b/i, why: "\u2192 \u201Ccan\u201D." },
@@ -170,7 +199,7 @@
     { id: "significance-designation", p: /\b(?:most|more) (?:interesting|telling|revealing|surprising) (?:part|thing|bit|detail)\b/i, why: "Significance tag." },
     { id: "significance-designation", p: /\b(?:that|this|which)(?:'?s| is| was) (?:exactly |precisely )?why [^.!?\n]{0,60}?\bmatters?\b/i, why: "Grades a passage the reader just read." },
 
-    { id: "abstraction-agency", p: /(?:^|(?<=[.!?]["\'\u201D\u2019]?\s))(?!(?:he|she|it|i|we|they|you|who|nobody|everyone|someone|that|this)\b)(?:the |a )?[a-z][\w-]*(?: [a-z][\w-]*)? (?:hides|shows|proves|explains|confirms|settles|reveals|says|tells|masks|buries|misses|decides) (?:it|that|this|so|otherwise|everything|nothing)\.(?=\s|$)/im, why: "Clipped sentence with an abstraction as the actor." },
+    { id: "abstraction-agency", p: /(?:^|(?<=[.!?]["\'\u201D\u2019]?\s))(?!(?:he|she|it|i|we|they|you|who|nobody|everyone|someone|that|this)\b)(?:the |a )?[a-z][\w-]*(?: [a-z][\w-]*)? (?:hides|shows|proves|explains|confirms|settles|reveals|masks|buries|misses|decides) (?:it|that|this|so|otherwise|everything|nothing)\.(?=\s|$)/im, why: "Clipped sentence with an abstraction as the actor." },
     { id: "abstraction-agency", p: /\b(?:table|chart|graph|data|numbers?|median|mean|average|metric|figure|plot|headline|benchmark|result)s? (?:hides?|admits?|knows?|wants?|refuses?|insists?|pretends?|forgets?|promises?)\b/i, why: "Inanimate subject given a mind." },
     { id: "abstraction-agency", p: /\bdoing (?:a lot of|all the|most of the|the real|real|quiet) work\b/i, why: "\u201CDoing the work\u201D \u2014 say what it does." },
     { id: "abstraction-agency", p: /\b(?:do|does|did|doing) (?:a lot of |all (?:of )?the |most of the |the )?heavy lifting\b/i, why: "\u201CHeavy lifting\u201D \u2014 say what it does." },
@@ -181,7 +210,7 @@
     { id: "deferred-noun", p: /(?:^|(?<=[.!?]["\'\u201D\u2019]?\s))one (?:thing|detail|number|line|of them) (?:is|isn'?t|was|wasn'?t|stands? out|stood out|does|doesn'?t|did|didn'?t)\b/im, why: "\u201COne thing\u2026\u201D \u2014 name it." },
 
     { id: "aphoristic-closer", p: /\bthe (?:kind|sort|type) of [\w-]+(?: [\w-]+)? that [^.!?\n]{2,60}\b(?:and|but) (?:is|was|does|did|are|were)(?:n'?t| not)\.(?=\s|$)/i, why: "\u201CThe kind of X that looks like Y and is not.\u201D" },
-    { id: "aphoristic-closer", p: /\b(?:and|but) (?:it )?(?:is|was|does|did|are|were|has|have|can|could|will|would)(?:n'?t| not)\.(?=\s|$)/i, why: "Sentence landing on a bare auxiliary \u2014 say what the second half claims." },
+    { id: "aphoristic-closer", p: /\b(?:and|but) (?:is|was|does|did|are|were|has|have|can|could|will|would)(?:n'?t| not)\.(?=\s|$)/i, why: "Sentence landing on a bare auxiliary \u2014 say what the second half claims." },
     { id: "aphoristic-closer", p: /(?:\b(?:is|was|are|were)|'s) the (?:whole|entire) (?:point|game|thing|trick|pitch|idea|story|premise|argument)\b/i, why: "Claims a total where a part was shown." },
     { id: "aphoristic-closer", p: /\bthe (?:whole|entire) (?:point|game|trick|pitch|premise|argument) (?:is|was)\b/i, why: "Claims a total where a part was shown." },
 
@@ -210,10 +239,10 @@
       ["streamlin(?:e|es|ing|ed)", "AI vocabulary."], ["robust", "AI vocabulary."],
       ["cutting-edge", "Hype word."], ["game-?changer", "Hype word."], ["groundbreaking", "Promotional word."],
       ["seamless(?:ly)?", "Marketing filler."], ["transformative", "Hype word."], ["paradigm shift", "Hype phrase."],
-      ["realm", "AI vocabulary."], ["beacon", "AI vocabulary."], ["multifaceted", "AI vocabulary."],
+      ["realm of", "AI vocabulary."], ["beacon", "AI vocabulary."], ["multifaceted", "AI vocabulary."],
       ["meticulous(?:ly)?", "AI vocabulary."], ["intricate", "AI vocabulary."], ["paramount", "AI vocabulary."],
-      ["elevate(?:s|d)?", "Marketing filler."], ["embark(?:s|ing|ed)?", "AI vocabulary."],
-      ["supercharge(?:s|d)?", "Hype word."], ["harness(?:es|ing|ed)?", "AI metaphor verb."],
+      ["elevat(?:e|es|ing)", "Marketing filler."], ["embark(?:s|ing|ed)?", "AI vocabulary."],
+      ["supercharge(?:s|d)?", "Hype word."], ["harness(?:es|ing|ed)? (?:the|its|their|your|our)", "AI metaphor verb."],
       ["ever-evolving", "AI vocabulary."], ["crucial(?:ly)?", "AI vocabulary."], ["enduring", "AI vocabulary."],
       ["enhanc(?:e|es|ing|ed)", "AI vocabulary."], ["garner(?:s|ed|ing)?", "AI vocabulary."],
       ["interplay", "AI vocabulary."], ["pivotal", "AI vocabulary."], ["showcas(?:e|es|ing|ed)", "AI vocabulary."],
@@ -259,17 +288,17 @@
         const out = [];
         out.push(...findAll(
           text,
-          /\b(?:it'?s|this is|that'?s|they'?re|is)? ?not (?:(?:just|merely|simply) [^.!?\n]{2,60}?[,;\u2014-]? ?(?:it'?s|but(?: also)?|but rather)|only [^.!?\n]{2,60}?[,;\u2014-]? ?it'?s)\b/gi,
+          /\b(?:it['\u2019]s|this is|that['\u2019]s|they['\u2019]re|is)? ?not (?:(?:just|merely|simply) [^.!?\n]{2,60}?[,;\u2014-]? ?(?:it['\u2019]s|but(?: also)?|but rather)|only [^.!?\n]{2,60}?[,;\u2014-]? ?it['\u2019]s)\b/gi,
           (m) => ({ start: m.index, end: m.index + m[0].length, message: "\u201CNot just X, but Y\u201D \u2014 signature AI cadence. State Y directly." })
         ));
         out.push(...findAll(
           text,
-          /\b(?:this |that |the \w+ )?(?:isn'?t|is not|wasn'?t|was not)(?: about)? [^.!?\n]{2,50}(?:[.,;]\s*it['\u2019]s|[.;]\s+(?:it|that) (?:is|was)(?! (?:possible|also|still|important|recommended|worth|likely|unlikely|unclear|not|up to|safe|fine|okay|easy|hard|best|better)\b))/gi,
+          /\b(?:this |that |the \w+ )?(?:(?:isn['\u2019]?t|is not|wasn['\u2019]?t|was not)(?: about)? [^.!?\n]{2,50}[.,;][^\S\n]*\n?[^\S\n]*it['\u2019]s|(?:is|was) not (?:(?:mostly|really|just|merely|simply|only) )?(?:a|an|the|about|because|that|what|how|why) [^.!?\n]{2,50}[.;][^\S\n]*\n?[^\S\n]*(?:it|that) (?:is|was)(?! (?:possible|also|still|important|recommended|worth|likely|unlikely|unclear|not|up to|safe|fine|okay|easy|hard|best|better)\b))\b/gi,
           (m) => ({ start: m.index, end: m.index + m[0].length, message: "Binary contrast (\u201CIt isn't X. It's Y.\u201D) \u2014 state Y directly." })
         ));
         out.push(...findAll(
           text,
-          /\bnot an? [^.!?\n]{2,40}\.\s+not an?\b/gi,
+          /\bnot an? [^.!?\n]{2,40}\.[^\S\n]*\n?[^\S\n]*not an?\b/gi,
           (m) => ({ start: m.index, end: m.index + m[0].length, message: "Negative listing (\u201CNot a X. Not a Y. A Z.\u201D) \u2014 just say Z." })
         ));
         out.push(...findAll(
@@ -279,7 +308,7 @@
         ));
         out.push(...findAll(
           text,
-          /\b(?:doesn'?t|does not|didn'?t|did not|don'?t|do not) (?:just|only|merely|simply) [^.!?\n]{2,60}?[,;.\u2014-]\s*(?:it|they|he|she|we|you)\b/gi,
+          /\b(?:doesn['\u2019]?t|does not|didn['\u2019]?t|did not) (?:just|only|merely|simply) [^.!?\n]{2,60}?[,;.\u2014-][^\S\n]*\n?[^\S\n]*(?:it|they|he|she|we)\b/gi,
           (m) => ({ start: m.index, end: m.index + m[0].length, message: "\u201CDoesn't just X, it Y\u201D \u2014 state Y directly." })
         ));
         return out.map((f) => ({ ...f, ruleId: "binary-contrast" }));
@@ -290,7 +319,7 @@
       run(text) {
         return findAll(
           text,
-          /,\s+(?:highlighting|underscoring|reflecting|showcasing|fostering|ensuring|emphasizing|demonstrating|signaling|cementing|symbolizing|cultivating|encompassing|solidifying|underlining|illustrating)\b[^.!?\n]{0,60}/gi,
+          /,\s+(?:highlighting|underscoring|reflecting|showcasing|fostering|emphasizing|demonstrating|signaling|cementing|symbolizing|cultivating|encompassing|solidifying|underlining|illustrating)\b[^.!?\n]{0,60}/gi,
           (m) => ({
             start: m.index, end: m.index + m[0].length,
             ruleId: "ing-explainer",
@@ -323,7 +352,8 @@
         const ABBREVIATION = /^(?:mr|mrs|ms|dr|prof|vs|etc|inc|ltd|no|st|jr|sr|fig|eg|ie|approx|dept|est)\.$/i;
         const isFragment = (span) => {
           const tokens = words(span.text);
-          return tokens.length <= 3
+          /* Three-word sentences include changelog lines such as "Add ARM support." */
+          return tokens.length <= 2
             && /^[A-Z]/.test(span.text)
             && /[a-z]{3}/i.test(span.text)
             && /[^.!?]\.$/.test(span.text)
@@ -357,9 +387,9 @@
           const lead = text.length - text.trimStart().length;
           headings.push({ start: lead, title: text.trim() });
         } else {
-          headings.push(...findAll(text, /^[ \t]{0,3}#{1,6}[ \t]+(.+?)[ \t]*#*[ \t]*$/gm, (m) => ({
+          headings.push(...findAll(text, /^[ \t]{0,3}#{1,6}[ \t]+(\S(?:.*\S)?)[ \t]*$/gm, (m) => ({
             start: m.index + m[0].indexOf(m[1]),
-            title: m[1],
+            title: withoutClosingHashes(m[1]),
           })));
         }
 
@@ -457,7 +487,7 @@
       run(text) {
         return findAll(
           text,
-          /\b\w+(?:ive|ing|ed|ful|ous|able|ant|ent|al|ic|y),\s+\w+(?:ive|ing|ed|ful|ous|able|ant|ent|al|ic|y),\s+and\s+\w+(?:ive|ing|ed|ful|ous|able|ant|ent|al|ic|y)\b/gi,
+          /\b[a-z]+(?:ive|ful|ous|able|ible|ant|ent|al|ic|less),\s+[a-z]+(?:ive|ful|ous|able|ible|ant|ent|al|ic|less),\s+and\s+[a-z]+(?:ive|ful|ous|able|ible|ant|ent|al|ic|less)\b/g,
           (m) => ({
             start: m.index, end: m.index + m[0].length,
             ruleId: "triad-adjectives",
@@ -486,7 +516,7 @@
     {
       id: "emoji-bullets",
       run(text) {
-        const hits = findAll(text, /^\s*(?:[\u2700-\u27BF\u2600-\u26FF]|\p{Extended_Pictographic})\s+\S/gmu, (m) => ({
+        const hits = findAll(text, /^[ \t]*\p{Extended_Pictographic}[\uFE0F\u200D\p{EMod}\p{Extended_Pictographic}]*[ \t]+(?=\S)/gmu, (m) => ({
           start: m.index, end: m.index + m[0].length,
         }));
         if (hits.length < 2) return [];
