@@ -9,9 +9,10 @@ const extensionFile = (name) => path.join(__dirname, "extension", name);
 const SLOP_P = `I hope this message finds you well. This launch marks a pivotal moment, showcasing our robust and transformative vision for the evolving landscape. Let me know if you have any questions.`;
 const HUMAN_P = `We met at the coffee shop around nine and argued about the playoffs for an hour. Nobody changed their mind but the pastries were worth the trip anyway.`;
 
-function boot(html, { autoScanPages = true, supportsHighlights = true, orphaned = false } = {}) {
-  const dom = new JSDOM(`<!doctype html><body>${html}</body>`, {
+function boot(html, { autoScanPages = true, supportsHighlights = true, orphaned = false, svgDocument = false } = {}) {
+  const dom = new JSDOM(svgDocument ? html : `<!doctype html><body>${html}</body>`, {
     url: "https://example.com/",
+    contentType: svgDocument ? "image/svg+xml" : "text/html",
     runScripts: "outside-only",
     pretendToBeVisual: true,
   });
@@ -280,4 +281,78 @@ test("text straight under <body> is scanned, and a block between two runs keeps 
   const texts = highlightedTexts(w);
   assert.ok(texts.some((t) => /finds you well/i.test(t)));
   assert.ok(!texts.some((t) => /not just/.test(t)), "two loose runs must not join into one sentence");
+});
+
+test("a block that leaves the page and returns on a later frame is read again", async () => {
+  const { messages, w } = boot(`<div id="host"><section id="s"><p>${SLOP_P}</p><p>${SLOP_P}</p></section></div><div id="other"><p id="clean">${HUMAN_P}</p></div>`);
+  await tick();
+  const before = highlightedTexts(w).length;
+  const section = w.document.getElementById("s");
+  section.remove();
+  await tick();
+  assert.strictEqual(highlightedTexts(w).length, 0);
+  w.document.getElementById("other").appendChild(section);
+  await tick();
+  assert.strictEqual(highlightedTexts(w).length, before);
+  assert.strictEqual(lastFindingCount(messages), before);
+
+  const clean = w.document.getElementById("clean");
+  clean.remove();
+  await tick();
+  clean.textContent = SLOP_P;
+  w.document.body.appendChild(clean);
+  await tick();
+  assert.strictEqual(highlightedTexts(w).length, before + before / 2);
+});
+
+test("a text change rescans its own block, not the document", async () => {
+  const { w } = boot(`<div><p id="stream">${HUMAN_P}</p></div>${`<div><p>${HUMAN_P}</p></div>`.repeat(50)}`);
+  await tick();
+  const roots = [];
+  const createTreeWalker = w.document.createTreeWalker.bind(w.document);
+  w.document.createTreeWalker = (root, ...rest) => {
+    roots.push(root);
+    return createTreeWalker(root, ...rest);
+  };
+  const stream = w.document.getElementById("stream");
+  stream.firstChild.appendData(` ${SLOP_P}`);
+  await tick();
+  assert.deepStrictEqual(roots, [stream]);
+  assert.ok(highlightedTexts(w).some((t) => /finds you well/i.test(t)));
+});
+
+test("a restore from the back/forward cache reports the count again", async () => {
+  const { messages, w } = boot(`<p>${SLOP_P}</p>`);
+  await tick();
+  const sent = messages.length;
+  const count = lastFindingCount(messages);
+  const show = (persisted) => {
+    const event = new w.Event("pageshow");
+    event.persisted = persisted;
+    w.dispatchEvent(event);
+  };
+  show(false);
+  assert.strictEqual(messages.length, sent);
+  show(true);
+  assert.strictEqual(messages.length, sent + 1);
+  assert.strictEqual(lastFindingCount(messages), count);
+});
+
+test("a finding that ends on a <br> is still marked", async () => {
+  const { w } = boot(`<p>We shipped the new build on Friday after a long week of testing and review. The catch:<br>it never ran on the old phones that most of our customers still carry.</p>`);
+  await tick();
+  assert.deepStrictEqual(highlightedTexts(w), ["The catch:"]);
+});
+
+test("text on either side of a nested block is not read as one sentence", async () => {
+  const { w } = boot(`<div>The launch went fine and it is not just<p>${HUMAN_P}</p> a tool, but a platform for everyone who works here with us.</div>`);
+  await tick();
+  assert.deepStrictEqual(highlightedTexts(w), []);
+});
+
+test("a document with no <body> is left alone", async () => {
+  const { messages, w } = boot(`<svg xmlns="http://www.w3.org/2000/svg"><text>${SLOP_P}</text></svg>`, { svgDocument: true });
+  await tick();
+  assert.strictEqual(w.document.body, null);
+  assert.strictEqual(messages.length, 0);
 });

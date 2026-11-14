@@ -123,10 +123,14 @@
     return closing && /[ \t]/.test(title[closing.index - 1] ?? "") ? title.slice(0, closing.index).trimEnd() : title;
   }
 
+  /* The catalog's patterns are tried on every block, so each one's global form is built once. */
+  const globalForms = new WeakMap();
   function findAll(text, regex, make) {
+    let re = regex.global ? regex : globalForms.get(regex);
+    if (!re) globalForms.set(regex, re = new RegExp(regex.source, regex.flags + "g"));
+    re.lastIndex = 0;
     const out = [];
     let m;
-    const re = new RegExp(regex.source, regex.flags.includes("g") ? regex.flags : regex.flags + "g");
     while ((m = re.exec(text)) !== null) {
       out.push(make(m));
       if (m.index === re.lastIndex) re.lastIndex++;

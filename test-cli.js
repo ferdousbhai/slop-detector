@@ -236,6 +236,8 @@ test("Markdown fences open and close only on real fence lines", () => {
   const lint = (text) => lintText(text, { filename: "a.md", segments: segmentsForFile("a.md", text) }).map((d) => d.text);
   assert.deepStrictEqual(lint("\`\`\`js\`\`\` is inline code here.\n\nLet us delve into it.\n"), ["delve"]);
   assert.deepStrictEqual(lint("~~~\n\`\`\`\nLet us delve into it.\n~~~\n\nA robust paragraph follows.\n"), ["robust"]);
+  const nested = ["\`\`\`\`md", "\`\`\`js", "const robust = 1;", "\`\`\`", "\`\`\`\`", "", "Let us delve into it.", ""].join("\n");
+  assert.deepStrictEqual(lint(nested), ["delve"]);
 });
 
 test("adversarial input inside the size bound finishes quickly", () => {
@@ -244,11 +246,13 @@ test("adversarial input inside the size bound finishes quickly", () => {
     ["a.html", "<".repeat(150000)],
     ["a.html", '<a title="'.repeat(30000)],
     ["a.html", "<code>".repeat(50000)],
+    ["a.html", `<table>\n${"<tr><td>Row value here</td><td>Another cell of text</td></tr>\n".repeat(15000)}</table>\n`],
     ["a.js", '"\\'.repeat(90000)],
   ];
   const started = Date.now();
   for (const [name, text] of cases) lintText(text, { filename: name, segments: segmentsForFile(name, text) });
-  assert.ok(Date.now() - started < 5000, `took ${Date.now() - started} ms`);
+  /* Each case took tens of seconds before it was bounded; the budget only has to tell those apart. */
+  assert.ok(Date.now() - started < 10000, `took ${Date.now() - started} ms`);
 });
 
 test("ignore patterns accept a leading or trailing slash", () => {

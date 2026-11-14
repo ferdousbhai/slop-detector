@@ -21,6 +21,8 @@
   let allRanges = [];
   let lastReportedCount = null;
   let messagingAvailable = true;
+  /* Stands for "the loose text under <body>" in a set of roots to rescan, where <body> itself would mean the whole page. */
+  const looseTextRoot = Symbol("loose body text");
 
   const highlightSupported = typeof Highlight !== "undefined" && typeof CSS !== "undefined" && CSS.highlights;
 
@@ -37,31 +39,53 @@
     return null;
   }
 
+  /* A <br> is the only element collected: it stands for the line break the flattened text needs.
+     Whitespace-only text nodes are kept so inline siblings stay word-separated in lintBlock. */
+  function isReadable(n) {
+    if (n.nodeType === Node.ELEMENT_NODE ? n.tagName !== "BR" : n.nodeType !== Node.TEXT_NODE || !n.nodeValue) return false;
+    for (let el = n.parentElement; el; el = el.parentElement) {
+      /* tagName is uppercase only for HTML-namespaced elements; SVG reports its authored case. */
+      if (SKIP_TAGS.has(el.tagName.toUpperCase()) || el.isContentEditable || el.getAttribute("aria-hidden") === "true") {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /* GAP marks where another block's text sits between two nodes of this one. The text on either side
+     is two paragraphs, and no finding may reach across the block in between. */
+  const GAP = null;
+
   function collectBlocks(root) {
+    const blocks = new Map();
+    let lastBlock = null;
+    const add = (n) => {
+      const block = blockOf(n);
+      const crossed = lastBlock !== null && lastBlock !== block;
+      lastBlock = block;
+      if (!block || processedBlocks.has(block)) return;
+      if (!blocks.has(block)) blocks.set(block, []);
+      else if (crossed) blocks.get(block).push(GAP);
+      blocks.get(block).push(n);
+    };
+
+    if (root === looseTextRoot) {
+      /* Only the text straight under <body> belongs to the <body> block, so only that is read. */
+      for (const child of document.body.childNodes) {
+        if (isReadable(child)) add(child);
+        else if (child.nodeType === Node.ELEMENT_NODE) lastBlock = child;
+      }
+      return blocks;
+    }
+
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT, {
       acceptNode(n) {
-        /* A <br> is the only element collected: it stands for the line break the flattened text needs. */
-        if (n.nodeType === Node.ELEMENT_NODE) {
-          if (n.tagName !== "BR") return NodeFilter.FILTER_SKIP;
-        } else if (!n.nodeValue) return NodeFilter.FILTER_REJECT;
-        /* Whitespace-only text nodes are kept so inline siblings stay word-separated in lintBlock. */
-        for (let el = n.parentElement; el; el = el.parentElement) {
-          /* tagName is uppercase only for HTML-namespaced elements; SVG reports its authored case. */
-          if (SKIP_TAGS.has(el.tagName.toUpperCase()) || el.isContentEditable || el.getAttribute("aria-hidden") === "true") {
-            return NodeFilter.FILTER_REJECT;
-          }
-        }
-        return NodeFilter.FILTER_ACCEPT;
+        if (n.nodeType === Node.ELEMENT_NODE && n.tagName !== "BR") return NodeFilter.FILTER_SKIP;
+        return isReadable(n) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
       },
     });
-    const blocks = new Map();
     let n;
-    while ((n = walker.nextNode())) {
-      const block = blockOf(n);
-      if (!block || processedBlocks.has(block)) continue;
-      if (!blocks.has(block)) blocks.set(block, []);
-      blocks.get(block).push(n);
-    }
+    while ((n = walker.nextNode())) add(n);
     return blocks;
   }
 
@@ -86,13 +110,9 @@
   function lintBlock(block, textNodes) {
     let text = "";
     const offsets = [];
-    let previous = null;
     for (const node of textNodes) {
-      /* Loose text on either side of a block is two paragraphs, not one. */
-      if (block === document.body && previous && node.previousSibling !== previous) text += "\n\n";
-      previous = node;
-      if (node.nodeType === Node.ELEMENT_NODE) {
-        text += "\n";
+      if (node === GAP || node.nodeType === Node.ELEMENT_NODE) {
+        text += node === GAP ? "\n\n" : "\n";
         continue;
       }
       offsets.push({ node, start: text.length, end: text.length + node.nodeValue.length });
@@ -106,12 +126,14 @@
     for (const f of result.findings) {
       if (f.end <= f.start) continue;
       const startEntry = offsets.find((o) => f.start >= o.start && f.start < o.end);
-      const endEntry = offsets.find((o) => f.end > o.start && f.end <= o.end);
+      /* A match can end on the line break that stands for a <br>, which no text node owns. */
+      const endEntry = offsets.find((o) => f.end > o.start && f.end <= o.end)
+        ?? offsets.findLast((o) => o.end < f.end && o.end > f.start);
       if (!startEntry || !endEntry) continue;
       try {
         const range = new Range();
         range.setStart(startEntry.node, f.start - startEntry.start);
-        range.setEnd(endEntry.node, f.end - endEntry.start);
+        range.setEnd(endEntry.node, Math.min(f.end, endEntry.end) - endEntry.start);
         range.slopBlock = block;
         highlight.add(range);
         allRanges.push(range);
@@ -119,21 +141,11 @@
     }
   }
 
-  /* Moving a block collapses its ranges but leaves its text alone, so no mutation names it. A range
-     that died inside a block still on the page means that block has to be read again. */
-  function releaseMovedBlocks() {
-    const moved = new Set();
-    for (const range of allRanges) {
-      if (!isLiveRange(range) && range.slopBlock?.isConnected) moved.add(range.slopBlock);
-    }
-    invalidateBlocks(moved);
-  }
-
-  function scan() {
+  function scan(roots) {
     if (!scanEnabled) return;
-    releaseMovedBlocks();
-    for (const [block, nodes] of collectBlocks(document.body)) {
-      lintBlock(block, nodes);
+    for (const root of roots) {
+      if (root !== looseTextRoot && !root.isConnected) continue;
+      for (const [block, nodes] of collectBlocks(root)) lintBlock(block, nodes);
     }
     updateFindingCount();
   }
@@ -181,27 +193,45 @@
     reportFindingCount();
   }
 
+  /* Each mutation names what has to be read again, so a page that streams text into one paragraph
+     costs one paragraph per frame, not a walk of the whole document. */
   function ensureObserver() {
     if (observer) return;
+    let dirty = new Set();
     let pending = false;
     observer = new MutationObserver((records) => {
-      const blocks = new Set();
+      const stale = new Set();
       for (const record of records) {
         const block = blockOf(record.target);
-        if (block) blocks.add(block);
+        if (block) {
+          stale.add(block);
+          dirty.add(block === document.body ? looseTextRoot : block);
+        }
+        /* An element can come back after a detour off the page, still marked as read and with its
+           ranges long gone. Everything that arrives is read as new. */
+        for (const node of record.addedNodes) {
+          if (node.nodeType !== Node.ELEMENT_NODE) continue;
+          stale.add(node);
+          for (const el of node.querySelectorAll("*")) stale.add(el);
+          dirty.add(node);
+        }
       }
-      invalidateBlocks(blocks);
+      invalidateBlocks(stale);
       if (pending) return;
       pending = true;
       requestAnimationFrame(() => {
         pending = false;
-        scan();
+        const roots = dirty;
+        dirty = new Set();
+        scan(roots);
       });
     });
     observer.observe(document.body, { childList: true, characterData: true, subtree: true });
   }
 
   function startScan() {
+    /* A standalone SVG or XML document has no <body> and nothing to read. */
+    if (!document.body) return;
     if (!scanEnabled || !highlightSupported) {
       reportFindingCount();
       return;
@@ -210,7 +240,7 @@
       highlight = new Highlight();
       CSS.highlights.set("slop-mark", highlight);
     }
-    scan();
+    scan([document.body]);
     /* scan() disables scanning when the extension context is gone; do not attach an observer to a dead context. */
     if (scanEnabled) ensureObserver();
   }
@@ -232,6 +262,14 @@
     } else {
       startScan();
     }
+  });
+
+  /* A page restored from the back/forward cache keeps its highlights, but the badge was cleared when
+     the tab navigated away and this script does not run again. */
+  window.addEventListener("pageshow", (event) => {
+    if (!event.persisted) return;
+    lastReportedCount = null;
+    reportFindingCount();
   });
 
   chrome.storage.onChanged.addListener((changes, area) => {
