@@ -286,14 +286,14 @@
   const rules = [
     {
       id: "catalog",
-      run(text) {
+      run(text, { source = text } = {}) {
         const out = [];
         for (const { id: ruleId, at, p: pattern, why: explanation } of PATTERN_CATALOG) {
           const spans = at === "sentence"
             ? findAtSentenceStarts(text, pattern)
             : findAll(text, pattern, (match) => ({ start: match.index, end: match.index + match[0].length }));
           for (const span of spans) {
-            out.push({ ...span, ruleId, message: `"${text.slice(span.start, span.end)}" \u2014 ${explanation}` });
+            out.push({ ...span, ruleId, message: `"${source.slice(span.start, span.end)}" \u2014 ${explanation}` });
           }
         }
         return out;
@@ -558,12 +558,14 @@
     const text = source
       .replace(/[\u2018\u2019]/g, "'")
       .replace(/\u00A0/g, " ")
-      .replace(/\b(?:https?:\/\/|www\.)[^\s<>"'`)\]]+/gi, (url) => {
-        const address = url.replace(/[.,;:!?]+$/, "");
+      .replace(/\b(?:https?:\/\/|www\.)[^\s<>"'`)\]\u201C\u201D\u00AB\u00BB]+/gi, (url) => {
+        /* Trailing punctuation and emphasis markers belong to the sentence, not the address. */
+        const address = url.replace(/[.,;:!?*_]+$/, "");
         return "/".repeat(address.length) + url.slice(address.length);
       });
     const collected = [];
-    for (const rule of rules) collected.push(...rule.run(text, options));
+    /* Rules match against the masked text; messages quote the original, so a URL never shows as slashes. */
+    for (const rule of rules) collected.push(...rule.run(text, { ...options, source }));
     for (const finding of collected) Object.assign(finding, RULES[finding.ruleId]);
     collected.sort((a, b) => a.start - b.start || b.end - a.end);
     const findings = dropNested(collected);

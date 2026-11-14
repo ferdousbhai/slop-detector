@@ -316,3 +316,13 @@ test("a URL keeps its line and its sentence end", () => {
     "Read the guide at https://example.com/guide! Overall, the choice is yours to make here.",
   ]) assert.ok(ruleIds(text).includes("recap-ending"), text);
 });
+
+test("a closing quote after a URL keeps the sentence end, and messages quote the original text", () => {
+  assert.ok(ruleIds("She wrote \u201Csee https://example.com/docs.\u201D Ultimately, it failed and nobody noticed for weeks.").includes("recap-ending"));
+  assert.ok(ruleIds("Read *https://example.com/guide*. Ultimately, the choice is yours to make here.").includes("recap-ending"));
+  const text = "Despite the challenges listed at https://example.com/status, the service remains.";
+  const finding = analyze(text).findings.find((f) => f.ruleId === "puffery");
+  assert.ok(finding);
+  assert.ok(finding.message.includes("https://example.com/status"), finding.message);
+  assert.ok(!finding.message.includes("///"), finding.message);
+});
