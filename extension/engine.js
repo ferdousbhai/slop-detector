@@ -67,28 +67,47 @@
     return out;
   }
 
-  /* A terminator only ends a sentence before whitespace, so "v1.2.3" and "3.5 seconds" stay whole. */
+  /* A terminator only ends a sentence before whitespace, so "v1.2.3" and "3.5 seconds" stay whole.
+     Several rules ask for the same text in one analyze call, so the last answer is kept. */
+  let lastSentences = { text: null, spans: [] };
   function sentenceSpans(text) {
-    const out = [];
-    for (const paragraph of paragraphSpans(text)) {
+    if (lastSentences.text === text) return lastSentences.spans;
+    const spans = [];
+    paragraphSpans(text).forEach((paragraph, index) => {
       const body = text.slice(paragraph.start, paragraph.end);
-      for (const m of body.matchAll(/\S[^]*?(?:[.!?]+["'\u201D\u2019)\]]*(?=\s)|$)/g)) {
-        out.push({ start: paragraph.start + m.index, end: paragraph.start + m.index + m[0].length, text: m[0] });
+      for (const m of body.matchAll(/\S[^]*?(?:[.!?]+["'”’)\]]*(?=\s)|$)/g)) {
+        spans.push({ start: paragraph.start + m.index, end: paragraph.start + m.index + m[0].length, text: m[0], paragraph: index });
       }
+    });
+    lastSentences = { text, spans };
+    return spans;
+  }
+
+  /* A line start is not a sentence start in hard-wrapped prose, so sentence-anchored patterns are tried
+     at each sentence's first word, past any list marker, heading marker, or opening quote. */
+  const SENTENCE_LEAD = /(?:(?:[-*+•>]|\d+[.)]|#{1,6})[ \t]+)?["'“‘(]*/y;
+  const stickyPatterns = new Map();
+  function findAtSentenceStarts(text, pattern) {
+    let sticky = stickyPatterns.get(pattern);
+    if (!sticky) stickyPatterns.set(pattern, sticky = new RegExp(pattern.source, "iy"));
+    const out = [];
+    for (const span of sentenceSpans(text)) {
+      SENTENCE_LEAD.lastIndex = span.start;
+      sticky.lastIndex = span.start + SENTENCE_LEAD.exec(text)[0].length;
+      const match = sticky.exec(text);
+      if (match) out.push({ start: match.index, end: match.index + match[0].length });
     }
     return out;
   }
 
-  /* Runs of sentences in one paragraph that satisfy `joins`, so list rows and headings never chain. */
-  const SAME_PARAGRAPH = /^(?:[ \t]+|[ \t]*\r?\n[ \t]*)$/;
-
-  function sentenceRuns(text, spans, joins) {
+  /* Runs of consecutive sentences in one paragraph that satisfy `joins`. List rows and headings are
+     paragraphs of their own, so they never chain. */
+  function sentenceRuns(spans, joins) {
     const runs = [];
     let run = [];
     for (const span of spans) {
       const previous = run[run.length - 1];
-      const adjacent = previous && SAME_PARAGRAPH.test(text.slice(previous.end, span.start));
-      if (adjacent && joins(previous, span)) run.push(span);
+      if (previous && previous.paragraph === span.paragraph && joins(previous, span)) run.push(span);
       else {
         if (run.length > 1) runs.push(run);
         run = [span];
@@ -163,13 +182,13 @@
     { id: "rhetorical-setup", p: /\bwhat if i told you\b/i, why: "Rhetorical setup." },
     { id: "rhetorical-setup", p: /\bthink about it:/i, why: "Rhetorical setup." },
     { id: "rhetorical-setup", p: /\bplot twist:/i, why: "Rhetorical setup." },
-    { id: "colon-reveal", p: /(?:^|(?<=[.!?]["\'\u201D\u2019]?\s))(?:and |but )?(?:the best part|the kicker|the catch|the twist|the result):\s/im, why: "Colon reveal — fake drama." },
+    { id: "colon-reveal", at: "sentence", p: /(?:and |but )?(?:the best part|the kicker|the catch|the twist|the result):\s/i, why: "Colon reveal — fake drama." },
     { id: "dramatic-fragment", p: /\bthat'?s it\.\s+that'?s\b/i, why: "\u201CThat's it. That's the whole thing.\u201D fragment drama." },
 
     { id: "essay-connective", p: /\bmoreover\b/i, why: "Essay connective — rare in real chat." },
     { id: "essay-connective", p: /\bfurthermore\b/i, why: "Essay connective — rare in real chat." },
     { id: "essay-connective", p: /\badditionally,/i, why: "Essay connective — rare in real chat." },
-    { id: "recap-ending", p: /(?:^|(?<=[.!?]\s))(?:in conclusion|in summary|to sum up|overall,|ultimately,)/im, why: "Summary-recap ending — the reader was just there." },
+    { id: "recap-ending", at: "sentence", p: /(?:in conclusion|in summary|to sum up|overall,|ultimately,)/i, why: "Summary-recap ending — the reader was just there." },
     { id: "filler-phrase", p: /\bit(?:'?s| is) (?:worth noting|important to note)\b/i, why: "Filler — delete it." },
     { id: "filler-phrase", p: /\bdue to the fact that\b/i, why: "\u2192 \u201Cbecause\u201D." },
     { id: "filler-phrase", p: /\bin order to\b/i, why: "\u2192 \u201Cto\u201D." },
@@ -187,7 +206,7 @@
     { id: "throat-clearing", p: /\bi (?:will not|won'?t) pretend\b/i, why: "Announced sincerity." },
     { id: "throat-clearing", p: /\blet'?s be (?:honest|real|clear)\b/i, why: "Announced sincerity." },
     { id: "throat-clearing", p: /\bhere'?s where it gets\b/i, why: "Staged reveal." },
-    { id: "rhetorical-setup", p: /(?:^|(?<=[.!?]["\'\u201D\u2019]?\s))(?:and |but |so )?the (?:result|catch|problem|solution|answer|kicker|twist|best part|worst part|upshot|takeaway|reason|difference|secret|trick|outcome|bottom line|verdict|lesson)\?\s/im, why: "Self-answered question \u2014 state the answer." },
+    { id: "rhetorical-setup", at: "sentence", p: /(?:and |but |so )?the (?:result|catch|problem|solution|answer|kicker|twist|best part|worst part|upshot|takeaway|reason|difference|secret|trick|outcome|bottom line|verdict|lesson)\?\s/i, why: "Self-answered question \u2014 state the answer." },
     { id: "filler-phrase", p: /\bat this point in time\b/i, why: "\u2192 \u201Cnow\u201D." },
     { id: "filler-phrase", p: /\bin the event that\b/i, why: "\u2192 \u201Cif\u201D." },
     { id: "filler-phrase", p: /\bhas the ability to\b/i, why: "\u2192 \u201Ccan\u201D." },
@@ -199,15 +218,15 @@
     { id: "significance-designation", p: /\b(?:most|more) (?:interesting|telling|revealing|surprising) (?:part|thing|bit|detail)\b/i, why: "Significance tag." },
     { id: "significance-designation", p: /\b(?:that|this|which)(?:'?s| is| was) (?:exactly |precisely )?why [^.!?\n]{0,60}?\bmatters?\b/i, why: "Grades a passage the reader just read." },
 
-    { id: "abstraction-agency", p: /(?:^|(?<=[.!?]["\'\u201D\u2019]?\s))(?!(?:he|she|it|i|we|they|you|who|nobody|everyone|someone|that|this)\b)(?:the |a )?[a-z][\w-]*(?: [a-z][\w-]*)? (?:hides|shows|proves|explains|confirms|settles|reveals|masks|buries|misses|decides) (?:it|that|this|so|otherwise|everything|nothing)\.(?=\s|$)/im, why: "Clipped sentence with an abstraction as the actor." },
+    { id: "abstraction-agency", at: "sentence", p: /(?!(?:he|she|it|i|we|they|you|who|nobody|everyone|someone|that|this)\b)(?:the |a )?[a-z][\w-]*(?: [a-z][\w-]*)? (?:hides|shows|proves|explains|confirms|settles|reveals|masks|buries|misses|decides) (?:it|that|this|so|otherwise|everything|nothing)\.(?=\s|$)/i, why: "Clipped sentence with an abstraction as the actor." },
     { id: "abstraction-agency", p: /\b(?:table|chart|graph|data|numbers?|median|mean|average|metric|figure|plot|headline|benchmark|result)s? (?:hides?|admits?|knows?|wants?|refuses?|insists?|pretends?|forgets?|promises?)\b/i, why: "Inanimate subject given a mind." },
     { id: "abstraction-agency", p: /\bdoing (?:a lot of|all the|most of the|the real|real|quiet) work\b/i, why: "\u201CDoing the work\u201D \u2014 say what it does." },
     { id: "abstraction-agency", p: /\b(?:do|does|did|doing) (?:a lot of |all (?:of )?the |most of the |the )?heavy lifting\b/i, why: "\u201CHeavy lifting\u201D \u2014 say what it does." },
     { id: "abstraction-agency", p: /\bearns? (?:its|their) (?:keep|place|spot|name|complexity|slot)\b/i, why: "Abstraction earning something." },
 
-    { id: "deferred-noun", p: /(?:^|(?<=[.!?]["\'\u201D\u2019]?\s))the (?:first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|other|others|last|rest|latter|former)(?: one| two| ones)? (?:is|are|was|were|does|do|did|has|have|had|will|can|could|would)(?:n'?t| not)?\.(?=\s|$)/im, why: "Pointer instead of a name, landing on a bare verb." },
+    { id: "deferred-noun", at: "sentence", p: /the (?:first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|other|others|last|rest|latter|former)(?: one| two| ones)? (?:is|are|was|were|does|do|did|has|have|had|will|can|could|would)(?:n'?t| not)?\.(?=\s|$)/i, why: "Pointer instead of a name, landing on a bare verb." },
     { id: "deferred-noun", p: /\bthere(?:'?s| is| was) (?:just|only) one (?:problem|catch|issue|wrinkle|snag)\b/i, why: "Withholds the noun for a beat." },
-    { id: "deferred-noun", p: /(?:^|(?<=[.!?]["\'\u201D\u2019]?\s))one (?:thing|detail|number|line|of them) (?:is|isn'?t|was|wasn'?t|stands? out|stood out|does|doesn'?t|did|didn'?t)\b/im, why: "\u201COne thing\u2026\u201D \u2014 name it." },
+    { id: "deferred-noun", at: "sentence", p: /one (?:thing|detail|number|line|of them) (?:is|isn'?t|was|wasn'?t|stands? out|stood out|does|doesn'?t|did|didn'?t)\b/i, why: "\u201COne thing\u2026\u201D \u2014 name it." },
 
     { id: "aphoristic-closer", p: /\bthe (?:kind|sort|type) of [\w-]+(?: [\w-]+)? that [^.!?\n]{2,60}\b(?:and|but) (?:is|was|does|did|are|were)(?:n'?t| not)\.(?=\s|$)/i, why: "\u201CThe kind of X that looks like Y and is not.\u201D" },
     { id: "aphoristic-closer", p: /\b(?:and|but) (?:is|was|does|did|are|were|has|have|can|could|will|would)(?:n'?t| not)\.(?=\s|$)/i, why: "Sentence landing on a bare auxiliary \u2014 say what the second half claims." },
@@ -226,6 +245,8 @@
     { id: "dressed-metaphor", p: /\b(?:masquerad(?:es?|ing|ed) as|dressed up as|disguised as|in disguise|cosplay(?:s|ing|ed)? as|with extra steps)\b/i, why: "Costume metaphor \u2014 name the mechanism." },
     { id: "dressed-metaphor", p: /\bload[- ]bearing\b(?! (?:walls?|beams?|columns?|structures?|members?|capacity|frames?|masonry))/i, why: "Structural metaphor \u2014 say what depends on it." },
     { id: "dressed-metaphor", p: /\bthe (?:seam|hinge|fault[- ]line|joint) where\b/i, why: "Structural-metaphor locator." },
+
+    { id: "label-first", at: "sentence", p: /(?:one|two|three|a few|a couple of) (?:quick |small |important |final |more |other )?(?:notes?|caveats?|things?|wrinkles?|points?|asides?|details?|catch|observations?|flags?)(?: (?:worth|to) \w+(?: \w+)?| before \w+(?: \w+)?| up front)?:/i, why: "Counted label announcing the content it precedes." },
 
     { id: "inflated-verb", p: /\bserves? as\b/i, why: "\u2192 just say \u201Cis\u201D." },
     { id: "inflated-verb", p: /\bstands? as\b/i, why: "\u2192 just say \u201Cis\u201D." },
@@ -263,20 +284,12 @@
       id: "catalog",
       run(text) {
         const out = [];
-        for (const {
-          id: ruleId,
-          p: pattern,
-          why: explanation,
-        } of PATTERN_CATALOG) {
-          for (const finding of findAll(text, pattern, (match) => ({
-            start: match.index,
-            end: match.index + match[0].length,
-          }))) {
-            out.push({
-              ...finding,
-              ruleId,
-              message: `"${text.slice(finding.start, finding.end)}" \u2014 ${explanation}`,
-            });
+        for (const { id: ruleId, at, p: pattern, why: explanation } of PATTERN_CATALOG) {
+          const spans = at === "sentence"
+            ? findAtSentenceStarts(text, pattern)
+            : findAll(text, pattern, (match) => ({ start: match.index, end: match.index + match[0].length }));
+          for (const span of spans) {
+            out.push({ ...span, ruleId, message: `"${text.slice(span.start, span.end)}" \u2014 ${explanation}` });
           }
         }
         return out;
@@ -288,12 +301,12 @@
         const out = [];
         out.push(...findAll(
           text,
-          /\b(?:it['\u2019]s|this is|that['\u2019]s|they['\u2019]re|is)? ?not (?:(?:just|merely|simply) [^.!?\n]{2,60}?[,;\u2014-]? ?(?:it['\u2019]s|but(?: also)?|but rather)|only [^.!?\n]{2,60}?[,;\u2014-]? ?it['\u2019]s)\b/gi,
+          /\b(?:(?:it['’]s|this is|that['’]s|they['’]re|is) )?not (?:(?:just|merely|simply) [^.!?\n]{2,60}?[,;—-]? ?(?:it['’]s|but(?: also)?|but rather)|only [^.!?\n]{2,60}?[,;—-]? ?it['’]s)\b/gi,
           (m) => ({ start: m.index, end: m.index + m[0].length, message: "\u201CNot just X, but Y\u201D \u2014 signature AI cadence. State Y directly." })
         ));
         out.push(...findAll(
           text,
-          /\b(?:this |that |the \w+ )?(?:(?:isn['\u2019]?t|is not|wasn['\u2019]?t|was not)(?: about)? [^.!?\n]{2,50}[.,;][^\S\n]*\n?[^\S\n]*it['\u2019]s|(?:is|was) not (?:(?:mostly|really|just|merely|simply|only) )?(?:a|an|the|about|because|that|what|how|why) [^.!?\n]{2,50}[.;][^\S\n]*\n?[^\S\n]*(?:it|that) (?:is|was)(?! (?:possible|also|still|important|recommended|worth|likely|unlikely|unclear|not|up to|safe|fine|okay|easy|hard|best|better)\b))\b/gi,
+          /\b(?:this |that |the \w+ )?(?:(?:isn['’]?t|is not|wasn['’]?t|was not)(?: about)? [^.!?\n]{2,50}[.,;][^\S\n]*\n?[^\S\n]*it['’]s (?:(?:a|an|the|about|because|what|how|why|where|who|all|your|our|my|their|its|more|less|pure|simply|just|really|not)\b|[\w-]+[.!](?=\s|$))|(?:is|was) not (?:(?:mostly|really|just|merely|simply|only) )?(?:a|an|the|about|because|that|what|how|why) [^.!?\n]{2,50}[.;][^\S\n]*\n?[^\S\n]*(?:it|that) (?:is|was) (?:a|an|the|about|because|what|how|why|where|who|all|your|our|my|their|its|more|less|pure|simply|just|really|not)\b)/gi,
           (m) => ({ start: m.index, end: m.index + m[0].length, message: "Binary contrast (\u201CIt isn't X. It's Y.\u201D) \u2014 state Y directly." })
         ));
         out.push(...findAll(
@@ -319,7 +332,7 @@
       run(text) {
         return findAll(
           text,
-          /,\s+(?:highlighting|underscoring|reflecting|showcasing|fostering|emphasizing|demonstrating|signaling|cementing|symbolizing|cultivating|encompassing|solidifying|underlining|illustrating)\b[^.!?\n]{0,60}/gi,
+          /,\s+(?:highlighting|underscoring|showcasing|fostering|emphasizing|demonstrating|cementing|symbolizing|cultivating|encompassing|solidifying|underlining|illustrating)\b[^.!?\n]{0,60}/gi,
           (m) => ({
             start: m.index, end: m.index + m[0].length,
             ruleId: "ing-explainer",
@@ -342,7 +355,7 @@
         const COUNT = /^(?:One|Two|Three|Four|Five|Six|Seven|Eight|Nine|Ten|Eleven|Twelve) [a-z][\w-]*(?: [a-z][\w-]*)?\.$/;
         for (let i = 0; i + 1 < spans.length; i++) {
           const span = spans[i];
-          const sameLine = SAME_PARAGRAPH.test(text.slice(span.end, spans[i + 1].start));
+          const sameLine = span.paragraph === spans[i + 1].paragraph;
           const answersQuestion = i > 0 && spans[i - 1].text.endsWith("?");
           if (sameLine && !answersQuestion && COUNT.test(span.text)) {
             out.push(make(span.start, span.end, "Count announced as its own sentence \u2014 fold it into the sentence it introduces."));
@@ -359,7 +372,7 @@
             && /[^.!?]\.$/.test(span.text)
             && !ABBREVIATION.test(span.text.replace(/\.(?=.)/g, ""));
         };
-        for (const run of sentenceRuns(text, spans, (a, b) => isFragment(a) && isFragment(b))) {
+        for (const run of sentenceRuns(spans, (a, b) => isFragment(a) && isFragment(b))) {
           if (run.length >= 3) {
             out.push(make(run[0].start, run[run.length - 1].end, "Run of clipped fragments \u2014 write it as one sentence."));
           }
@@ -371,7 +384,7 @@
           const tokens = words(span.text.toLowerCase().replace(/[^\p{L}\p{N}'\u2019\s-]/gu, ""));
           return tokens.length >= 3 && OPENERS.has(tokens[0]) ? tokens.slice(0, 2).join(" ") : "";
         };
-        for (const run of sentenceRuns(text, spans, (a, b) => opening(a) !== "" && opening(a) === opening(b))) {
+        for (const run of sentenceRuns(spans, (a, b) => opening(a) !== "" && opening(a) === opening(b))) {
           if (run.length >= 3) {
             out.push(make(run[0].start, run[run.length - 1].end, `${run.length} sentences in a row open on \u201C${opening(run[0])}\u201D \u2014 parallelism carried by repetition.`));
           }
@@ -440,14 +453,6 @@
           }
         }
 
-        out.push(...findAll(
-          text,
-          /(?:^|(?<=[.!?]["\'\u201D\u2019]?\s))(?:one|two|three|a few|a couple of) (?:quick |small |important |final |more |other )?(?:notes?|caveats?|things?|wrinkles?|points?|asides?|details?|catch|observations?|flags?)(?: (?:worth|to) \w+(?: \w+)?| before \w+(?: \w+)?| up front)?:/gim,
-          (m) => ({
-            start: m.index, end: m.index + m[0].length, ruleId: "label-first",
-            message: "Counted label announcing the content it precedes \u2014 start with the content.",
-          })
-        ));
         return out;
       },
     },

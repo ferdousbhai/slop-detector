@@ -228,3 +228,43 @@ test("whitespace runs do not slow analysis down", () => {
   for (const text of inputs) analyze(text);
   assert.ok(Date.now() - started < 2000, `took ${Date.now() - started} ms`);
 });
+
+test("a wrapped line is not a sentence start", () => {
+  const wrapped = [
+    "After the loop finishes we sort the names and print\nthe result: a list of names in alphabetical order.",
+    "We measured each stage and the latency was low\noverall, though the last stage took longer than the rest.",
+    "Nobody in the room that afternoon seemed to know\nthe answer? That surprised me.",
+    "I checked every row twice and it turned out only\none number was wrong in the whole sheet.",
+  ];
+  for (const text of wrapped) assert.deepStrictEqual(ruleIds(text), [], text);
+
+  const starts = [
+    ["colon-reveal", "We shipped on time. The catch: nobody had tested it."],
+    ["colon-reveal", "- The catch: nobody had tested it."],
+    ["recap-ending", "It rained all week.\n\nIn conclusion, bring a coat."],
+    ["rhetorical-setup", "We shipped it. \"The result? Chaos.\""],
+    ["label-first", "Two things: the cache is cold and the disk is full."],
+  ];
+  for (const [want, text] of starts) assert.ok(ruleIds(text).includes(want), `${want} missed: ${text}`);
+});
+
+test("negation followed by an unrelated sentence is not a contrast", () => {
+  const clean = [
+    "That was not the plan. It was raining, so we stayed in.",
+    "The meeting is not about budgets. It is at three.",
+    "The server isn't responding, it's probably down for maintenance again.",
+    "The pond was perfectly still, reflecting the pines along the far bank.",
+  ];
+  for (const text of clean) assert.deepStrictEqual(ruleIds(text), [], text);
+  for (const text of ["This isn't about speed. It's about trust.", "It isn't a bug, it's a feature.", "That isn't magic, it's math."]) {
+    assert.ok(ruleIds(text).includes("binary-contrast"), text);
+  }
+});
+
+test("spans start on the first flagged word, and list rows never chain", () => {
+  const text = "They do not just sit there, but move around.";
+  const [finding] = analyze(text).findings;
+  assert.strictEqual(text.slice(finding.start, finding.end), "not just sit there, but");
+  const rows = "* It supports Linux on x86 machines.\n* It supports macOS on Apple silicon.\n* It supports Windows through WSL.";
+  assert.deepStrictEqual(ruleIds(rows), []);
+});

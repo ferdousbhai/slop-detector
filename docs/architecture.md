@@ -63,7 +63,8 @@ repository tooling gains its own distribution lifecycle.
   or replace host-page DOM nodes.
 - Repository files and agent-output stdin are treated as untrusted input and
   bounded to 1 MB per file or payload.
-- Symlinks and binary files are not scanned.
+- Symlinks and binary files are not scanned. A symlink named on the command
+  line is an error.
 
 ## Efficiency choices
 

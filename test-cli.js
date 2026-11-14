@@ -125,8 +125,11 @@ test("HTML headings carry heading context to the engine", () => {
     filename: "page.html",
     segments: segmentsForFile("page.html", text),
   });
-  assert.deepStrictEqual(diagnostics.map((d) => [d.ruleId, d.text]), [["coy-header", "Why this matters"]]);
-  assert.strictEqual(diagnostics[0].column, text.indexOf("<h2>Why this matters") + 5);
+  assert.deepStrictEqual(diagnostics.map((d) => [d.ruleId, d.text]), [
+    ["coy-header", "Why this <em>matters"],
+    ["coy-header", "Why this matters"],
+  ]);
+  assert.strictEqual(diagnostics[1].column, text.indexOf("<h2>Why this matters") + 5);
 });
 
 test("source scanning checks comments, strings, and JSX text without linting identifiers", () => {
@@ -203,6 +206,42 @@ test("invalid config shapes produce actionable errors", () => {
   });
   assert.equal(result.status, 2);
   assert.match(result.stderr, /"ignore" must be an array of strings/);
+});
+
+test("HTML phrases that cross inline tags are read as one paragraph", () => {
+  const text = `<p>Please <a href="x">feel free</a> to ask, and <code>delve()</code> is only a function name.</p>`;
+  const diagnostics = lintText(text, { filename: "page.html", segments: segmentsForFile("page.html", text) });
+  assert.deepStrictEqual(diagnostics.map((d) => [d.ruleId, d.text, d.column]), [
+    ["chatbot-phrase", `feel free</a> to`, text.indexOf("feel free") + 1],
+  ]);
+});
+
+test("ignore patterns accept a leading or trailing slash", () => {
+  const directory = tempDir();
+  fs.mkdirSync(path.join(directory, "docs"));
+  fs.writeFileSync(path.join(directory, "docs", "x.md"), "Great question about this one.\n");
+  for (const pattern of ["docs", "docs/", "/docs", "./docs/"]) {
+    assert.deepEqual(collectFiles([directory], { ignore: [pattern], root: directory }), [], pattern);
+  }
+});
+
+test("a directory named on the command line is linted even under a default-ignored name", () => {
+  const directory = tempDir();
+  spawnSync("git", ["init", "-q", directory]);
+  fs.mkdirSync(path.join(directory, "build", "docs"), { recursive: true });
+  fs.writeFileSync(path.join(directory, "build", "docs", "x.md"), "Great question about this one.\n");
+  assert.deepEqual(collectFiles([directory], { root: directory }), []);
+  const named = collectFiles([path.join(directory, "build")], { root: directory });
+  assert.deepEqual(named.map((file) => path.basename(file)), ["x.md"]);
+});
+
+test("a symbolic link named on the command line is reported, not skipped silently", () => {
+  const directory = tempDir();
+  fs.mkdirSync(path.join(directory, "docs"));
+  fs.symlinkSync(path.join(directory, "docs"), path.join(directory, "lnk"));
+  const result = spawnSync(process.execPath, [cli, "lnk"], { cwd: directory, encoding: "utf8" });
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /symbolic link/);
 });
 
 test("source scanning follows each language's own comment and string syntax", () => {

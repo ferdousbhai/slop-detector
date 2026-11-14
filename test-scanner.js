@@ -256,3 +256,9 @@ test("text outside the usual block tags is still scanned", async () => {
   const openers = highlightedTexts(w).filter((t) => /finds you well/i.test(t));
   assert.strictEqual(openers.length, 3);
 });
+
+test("text in separate inline containers is never read as one sentence", async () => {
+  const { w } = boot(`<nav><a href="/">Our pricing is not just fair</a></nav><main><p>${HUMAN_P}</p></main><nav><a href="/x">but also simple enough that everyone on the team can explain it in a minute</a></nav>`);
+  await tick();
+  assert.deepStrictEqual(highlightedTexts(w), []);
+});

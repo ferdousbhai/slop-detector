@@ -24,11 +24,16 @@
 
   const highlightSupported = typeof Highlight !== "undefined" && typeof CSS !== "undefined" && CSS.highlights;
 
+  /* Text with no block ancestor belongs to its outermost element under <body>, so one <nav> or <span>
+     is one block and unrelated parts of the page are never read as one sentence. */
   function blockOf(node) {
-    let el = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
-    while (el && !BLOCK_TAGS.has(el.tagName)) el = el.parentElement;
-    /* Text that sits straight under <body>, or under inline wrappers only, still belongs to a block. */
-    return el ?? (document.body.contains(node) ? document.body : null);
+    let outermost = null;
+    for (let el = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement; el; el = el.parentElement) {
+      if (BLOCK_TAGS.has(el.tagName)) return el;
+      if (el === document.body) return outermost;
+      outermost = el;
+    }
+    return null;
   }
 
   function collectBlocks(root) {

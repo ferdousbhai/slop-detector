@@ -44,7 +44,8 @@ Some rules need context that plain text does not carry.
 
 - `coy-header` reads Markdown `#` headings on its own. In the browser the
   scanner marks `<h1>` to `<h6>` blocks as headings, and the HTML linter does
-  the same for heading tags.
+  the same for heading tags. The HTML linter ends a block at any tag that is not
+  inline, so a phrase may cross a link or emphasis.
 - `label-first` reads Markdown `**bold**` on its own. In the browser the scanner
   reports a bold run that opens a block. The HTML linter does not.
 - `emoji-bullets` compares lines inside one block. The browser sees each list
