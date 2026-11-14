@@ -586,3 +586,23 @@ test("a block emptied while off the page and refilled after it returns re-splits
   await tick();
   assert.deepStrictEqual(highlightedTexts(w), []);
 });
+
+test("a body-level change beside a large text-free subtree does not visit that subtree", async () => {
+  const grid = "<div><div><span></span></div></div>".repeat(1000);
+  const { w } = boot(`\n<header><p>${HUMAN_P}</p></header>\n<div id="big">${grid}</div>\n<footer><p>${HUMAN_P}</p></footer>\n`);
+  await tick();
+  let visited = 0;
+  const createTreeWalker = w.document.createTreeWalker.bind(w.document);
+  /* Only walks with a filter call back into the scanner per node; jsdom's own and the native pre-check do not. */
+  w.document.createTreeWalker = (root, what, filter) => createTreeWalker(root, what, filter && {
+    acceptNode(node) {
+      visited++;
+      return filter.acceptNode(node);
+    },
+  });
+  const tip = w.document.createElement("div");
+  tip.textContent = "tip";
+  w.document.body.append(tip);
+  await tick();
+  assert.ok(visited < 100, `${visited} nodes visited for one appended tooltip`);
+});

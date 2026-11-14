@@ -74,10 +74,16 @@
     });
   }
 
-  /* Stops at the first readable node, so a block with text costs a few steps however large it is.
-     Reading textContent instead would copy all of a long thread's text on every check. */
+  /* Both checks stop at the first hit, so a block with text costs a few steps however large it is.
+     The first runs natively and turns away a subtree with no text and no <br> without visiting its
+     elements one by one; reading textContent instead would copy a long thread's text every time. */
   function hasReadableText(el) {
-    return !isHiddenSubtree(el) && readableWalker(el).nextNode() !== null;
+    if (isHiddenSubtree(el)) return false;
+    const texts = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    let text = texts.nextNode();
+    while (text !== null && text.nodeValue === "") text = texts.nextNode();
+    if (text === null && !el.querySelector("br")) return false;
+    return readableWalker(el).nextNode() !== null;
   }
 
   /* Blocks known to contain text, their own or a nested block's. A nested block that gains or loses all
