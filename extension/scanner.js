@@ -25,12 +25,13 @@
   const highlightSupported = typeof Highlight !== "undefined" && typeof CSS !== "undefined" && CSS.highlights;
 
   /* Text with no block ancestor belongs to its outermost element under <body>, so one <nav> or <span>
-     is one block and unrelated parts of the page are never read as one sentence. */
+     is one block and unrelated parts of the page are never read as one sentence. Text that sits
+     straight under <body> has no such element, and <body> itself stands in. */
   function blockOf(node) {
     let outermost = null;
     for (let el = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement; el; el = el.parentElement) {
       if (BLOCK_TAGS.has(el.tagName)) return el;
-      if (el === document.body) return outermost;
+      if (el === document.body) return outermost ?? el;
       outermost = el;
     }
     return null;
@@ -85,7 +86,11 @@
   function lintBlock(block, textNodes) {
     let text = "";
     const offsets = [];
+    let previous = null;
     for (const node of textNodes) {
+      /* Loose text on either side of a block is two paragraphs, not one. */
+      if (block === document.body && previous && node.previousSibling !== previous) text += "\n\n";
+      previous = node;
       if (node.nodeType === Node.ELEMENT_NODE) {
         text += "\n";
         continue;
@@ -114,8 +119,19 @@
     }
   }
 
+  /* Moving a block collapses its ranges but leaves its text alone, so no mutation names it. A range
+     that died inside a block still on the page means that block has to be read again. */
+  function releaseMovedBlocks() {
+    const moved = new Set();
+    for (const range of allRanges) {
+      if (!isLiveRange(range) && range.slopBlock?.isConnected) moved.add(range.slopBlock);
+    }
+    invalidateBlocks(moved);
+  }
+
   function scan() {
     if (!scanEnabled) return;
+    releaseMovedBlocks();
     for (const [block, nodes] of collectBlocks(document.body)) {
       lintBlock(block, nodes);
     }

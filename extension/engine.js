@@ -182,7 +182,7 @@
     { id: "rhetorical-setup", p: /\bwhat if i told you\b/i, why: "Rhetorical setup." },
     { id: "rhetorical-setup", p: /\bthink about it:/i, why: "Rhetorical setup." },
     { id: "rhetorical-setup", p: /\bplot twist:/i, why: "Rhetorical setup." },
-    { id: "colon-reveal", at: "sentence", p: /(?:and |but )?(?:the best part|the kicker|the catch|the twist|the result):\s/i, why: "Colon reveal — fake drama." },
+    { id: "colon-reveal", at: "sentence", p: /(?:and |but )?(?:the best part|the kicker|the catch|the twist):\s/i, why: "Colon reveal — fake drama." },
     { id: "dramatic-fragment", p: /\bthat'?s it\.\s+that'?s\b/i, why: "\u201CThat's it. That's the whole thing.\u201D fragment drama." },
 
     { id: "essay-connective", p: /\bmoreover\b/i, why: "Essay connective — rare in real chat." },
@@ -298,33 +298,35 @@
     {
       id: "binary-contrast",
       run(text) {
-        const out = [];
-        out.push(...findAll(
-          text,
-          /\b(?:(?:it['’]s|this is|that['’]s|they['’]re|is) )?not (?:(?:just|merely|simply) [^.!?\n]{2,60}?[,;—-]? ?(?:it['’]s|but(?: also)?|but rather)|only [^.!?\n]{2,60}?[,;—-]? ?it['’]s)\b/gi,
-          (m) => ({ start: m.index, end: m.index + m[0].length, message: "\u201CNot just X, but Y\u201D \u2014 signature AI cadence. State Y directly." })
-        ));
-        out.push(...findAll(
-          text,
-          /\b(?:this |that |the \w+ )?(?:(?:isn['’]?t|is not|wasn['’]?t|was not)(?: about)? [^.!?\n]{2,50}[.,;][^\S\n]*\n?[^\S\n]*it['’]s (?:(?:a|an|the|about|because|what|how|why|where|who|all|your|our|my|their|its|more|less|pure|simply|just|really|not)\b|[\w-]+[.!](?=\s|$))|(?:is|was) not (?:(?:mostly|really|just|merely|simply|only) )?(?:a|an|the|about|because|that|what|how|why) [^.!?\n]{2,50}[.;][^\S\n]*\n?[^\S\n]*(?:it|that) (?:is|was) (?:a|an|the|about|because|what|how|why|where|who|all|your|our|my|their|its|more|less|pure|simply|just|really|not)\b)/gi,
-          (m) => ({ start: m.index, end: m.index + m[0].length, message: "Binary contrast (\u201CIt isn't X. It's Y.\u201D) \u2014 state Y directly." })
-        ));
-        out.push(...findAll(
-          text,
-          /\bnot an? [^.!?\n]{2,40}\.[^\S\n]*\n?[^\S\n]*not an?\b/gi,
-          (m) => ({ start: m.index, end: m.index + m[0].length, message: "Negative listing (\u201CNot a X. Not a Y. A Z.\u201D) \u2014 just say Z." })
-        ));
-        out.push(...findAll(
-          text,
-          /\bnot because [^.!?\n]{2,80}?[,;\u2014-]\s*(?:but )?because\b/gi,
-          (m) => ({ start: m.index, end: m.index + m[0].length, message: "\u201CNot because X, because Y\u201D \u2014 give the reason directly." })
-        ));
-        out.push(...findAll(
-          text,
-          /\b(?:doesn['\u2019]?t|does not|didn['\u2019]?t|did not) (?:just|only|merely|simply) [^.!?\n]{2,60}?[,;.\u2014-][^\S\n]*\n?[^\S\n]*(?:it|they|he|she|we)\b/gi,
-          (m) => ({ start: m.index, end: m.index + m[0].length, message: "\u201CDoesn't just X, it Y\u201D \u2014 state Y directly." })
-        ));
-        return out.map((f) => ({ ...f, ruleId: "binary-contrast" }));
+        const found = (regex, message) => findAll(text, regex, (m) => ({ start: m.index, end: m.index + m[0].length, message }));
+        const out = [
+          ...found(
+            /\b(?:(?:it's|this is|that's|they're|is) )?not (?:(?:just|merely|simply) [^.!?\n]{2,60}?(?:[,;\u2014-] ?it's|[,;\u2014-]? ?but(?: also| rather)?)|only [^.!?\n]{2,60}?[,;\u2014-] ?it's)\b/gi,
+            "\u201CNot just X, but Y\u201D \u2014 signature AI cadence. State Y directly."
+          ),
+          /* Both halves have to be the same kind of phrase. "It isn't starting. It's really cold." is two facts. */
+          ...found(
+            /\b(?:this |that |the \w+ )?(?:isn'?t|is not|wasn'?t|was not) (?:(?:just|really|only|simply|merely|mostly) )?(?:(?:a|an|the|about|because|what|how|why|where|who|your|our|my|their|more|less) [^.!?\n]{1,50}?|[\w-]+)[.,;][^\S\n]*\n?[^\S\n]*(?:it's|(?:it|that) (?:is|was)) (?:(?:a|an|the|about|because|what|how|why|where|who|your|our|my|their|more|less)\b|[\w-]+[.!](?=\s|$))/gi,
+            "Binary contrast (\u201CIt isn't X. It's Y.\u201D) \u2014 state Y directly."
+          ),
+          ...found(
+            /\bnot an? [^.!?\n]{2,40}\.[^\S\n]*\n?[^\S\n]*not an?\b/gi,
+            "Negative listing (\u201CNot a X. Not a Y. A Z.\u201D) \u2014 just say Z."
+          ),
+          ...found(
+            /\bnot because [^.!?\n]{2,80}?[,;\u2014-]\s*(?:but )?because\b/gi,
+            "\u201CNot because X, because Y\u201D \u2014 give the reason directly."
+          ),
+          ...found(
+            /\b(?:doesn'?t|does not|didn'?t|did not) (?:just|merely|simply) [^.!?\n]{2,60}?[,;.\u2014-][^\S\n]*\n?[^\S\n]*(?:it|they|he|she)\b/gi,
+            "\u201CDoesn't just X, it Y\u201D \u2014 state Y directly."
+          ),
+        ];
+        /* "If it isn't plugged in, it's not going to work" is a condition and its result, not a contrast. */
+        const CONDITIONAL = /\b(?:if|when|whenever|unless|because|since|while|until)\b[^.!?\n]*$/i;
+        return out
+          .filter((f) => !CONDITIONAL.test(text.slice(Math.max(0, f.start - 120), f.start)))
+          .map((f) => ({ ...f, ruleId: "binary-contrast" }));
       },
     },
     {
@@ -544,7 +546,9 @@
     });
   }
 
-  function analyze(text, options = {}) {
+  function analyze(source, options = {}) {
+    /* Typographic apostrophes and no-break spaces are one character each, so offsets stay valid. */
+    const text = source.replace(/[\u2018\u2019]/g, "'").replace(/\u00A0/g, " ");
     const collected = [];
     for (const rule of rules) collected.push(...rule.run(text, options));
     for (const finding of collected) Object.assign(finding, RULES[finding.ruleId]);

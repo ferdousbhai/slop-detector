@@ -36,7 +36,8 @@ node bin/slop-detector.js .
 
 The linter checks Git-tracked and non-ignored files. Ignore patterns are
 relative to the directory of the `.slopdetector.json` that sets them, and a
-pattern that names a directory covers everything in it. It extracts prose from
+pattern that names a directory covers everything in it. `*.md` matches in that
+directory only; `**/*.md` matches at any depth. It extracts prose from
 documents, comments, strings, HTML attributes, and visible template text. It
 skips dependencies, generated output, lockfiles, binaries, symlinks, and files
 larger than 1 MB.

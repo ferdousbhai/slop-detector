@@ -216,6 +216,41 @@ test("HTML phrases that cross inline tags are read as one paragraph", () => {
   ]);
 });
 
+test("HTML entities are decoded and comments are skipped, with ranges on the source text", () => {
+  const text = `<!-- <p>feel free to edit</p> if a > b -->\n<p title="a > b">I&rsquo;d be happy to help &amp; feel&nbsp;free to ask.</p>`;
+  const diagnostics = lintText(text, { filename: "p.html", segments: segmentsForFile("p.html", text) });
+  assert.deepStrictEqual(diagnostics.map((d) => [d.text, d.line]), [
+    ["I&rsquo;d be happy to", 2],
+    ["feel&nbsp;free to", 2],
+  ]);
+});
+
+test("source scanning reads SQL comments, skips character literals, and blanks string escapes", () => {
+  const lint = (name, text) => lintText(text, { filename: name, segments: segmentsForFile(name, text) }).map((d) => d.text);
+  assert.deepStrictEqual(lint("a.c", `char c = '"'; char *s = "Great question"; /* I'd be happy to */\n`), ["Great question", "I'd be happy to"]);
+  assert.deepStrictEqual(lint("a.sql", "-- feel free to edit\nSELECT 1;\n"), ["feel free to"]);
+  assert.deepStrictEqual(lint("a.js", `const s = "Thanks.\\nFeel free to ask";\n`), ["Feel free to"]);
+});
+
+test("Markdown fences open and close only on real fence lines", () => {
+  const lint = (text) => lintText(text, { filename: "a.md", segments: segmentsForFile("a.md", text) }).map((d) => d.text);
+  assert.deepStrictEqual(lint("\`\`\`js\`\`\` is inline code here.\n\nLet us delve into it.\n"), ["delve"]);
+  assert.deepStrictEqual(lint("~~~\n\`\`\`\nLet us delve into it.\n~~~\n\nA robust paragraph follows.\n"), ["robust"]);
+});
+
+test("adversarial input inside the size bound finishes quickly", () => {
+  const cases = [
+    ["a.md", "](".repeat(150000)],
+    ["a.html", "<".repeat(150000)],
+    ["a.html", '<a title="'.repeat(30000)],
+    ["a.html", "<code>".repeat(50000)],
+    ["a.js", '"\\'.repeat(90000)],
+  ];
+  const started = Date.now();
+  for (const [name, text] of cases) lintText(text, { filename: name, segments: segmentsForFile(name, text) });
+  assert.ok(Date.now() - started < 5000, `took ${Date.now() - started} ms`);
+});
+
 test("ignore patterns accept a leading or trailing slash", () => {
   const directory = tempDir();
   fs.mkdirSync(path.join(directory, "docs"));

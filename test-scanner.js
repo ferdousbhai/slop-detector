@@ -262,3 +262,22 @@ test("text in separate inline containers is never read as one sentence", async (
   await tick();
   assert.deepStrictEqual(highlightedTexts(w), []);
 });
+
+test("a block moved elsewhere in the page keeps its highlights", async () => {
+  const { messages, w } = boot(`<div id="a"><p id="p">${SLOP_P}</p></div><div id="b"></div>`);
+  await tick();
+  const before = highlightedTexts(w).length;
+  assert.ok(before >= 3);
+  w.document.getElementById("b").append(w.document.getElementById("p"));
+  await tick();
+  assert.strictEqual(highlightedTexts(w).length, before);
+  assert.strictEqual(lastFindingCount(messages), before);
+});
+
+test("text straight under <body> is scanned, and a block between two runs keeps them apart", async () => {
+  const { w } = boot(`${SLOP_P}<p>${HUMAN_P}</p>Our pricing is honestly not just fair for a team this size<p>${HUMAN_P}</p>but also simple enough that everyone can explain it in a minute`);
+  await tick();
+  const texts = highlightedTexts(w);
+  assert.ok(texts.some((t) => /finds you well/i.test(t)));
+  assert.ok(!texts.some((t) => /not just/.test(t)), "two loose runs must not join into one sentence");
+});

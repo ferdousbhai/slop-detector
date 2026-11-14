@@ -268,3 +268,25 @@ test("spans start on the first flagged word, and list rows never chain", () => {
   const rows = "* It supports Linux on x86 machines.\n* It supports macOS on Apple silicon.\n* It supports Windows through WSL.";
   assert.deepStrictEqual(ruleIds(rows), []);
 });
+
+test("conditions and unrelated second sentences are not contrasts", () => {
+  const clean = [
+    "If it isn't plugged in, it's not going to work.",
+    "If the server isn't running, it's because the port is taken.",
+    "When the cache isn't warm, it's a lot slower.",
+    "The printer isn't working again. It's the third time this week.",
+    "My car isn't starting. It's really cold outside today.",
+    "I'm not just saying that because it's Friday.",
+    "If that doesn't simply work, we can try the other approach.",
+    "It doesn't only happen on Linux. We saw it on macOS too.",
+    "The result: 42 passed, 3 failed.",
+  ];
+  for (const text of clean) assert.deepStrictEqual(ruleIds(text), [], text);
+});
+
+test("typographic apostrophes and no-break spaces match like plain ones", () => {
+  const text = "I’d be happy to help, and feel free to ask. It isn’t a bug, it’s a feature.";
+  const found = analyze(text).findings;
+  assert.deepStrictEqual(found.map((f) => f.ruleId), ["chatbot-phrase", "chatbot-phrase", "binary-contrast"]);
+  assert.strictEqual(text.slice(found[0].start, found[0].end), "I’d be happy to");
+});
