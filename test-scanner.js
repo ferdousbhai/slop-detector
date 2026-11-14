@@ -532,3 +532,57 @@ test("an element holding only line breaks splits loose text as it does on a fres
   await tick();
   assert.deepStrictEqual(highlightedTexts(w).sort(), [...want].sort());
 });
+
+test("rows arriving under one container read the container's text once", async () => {
+  const rows = (word) => Array.from({ length: 300 }, (_, i) => `<div class="row"><div>${i}</div><div>${word} ${i}</div></div>`).join("");
+  const { w } = boot(`<main><div id="g">${rows("name")}</div></main>`);
+  await tick();
+  let reads = 0;
+  const textContent = Object.getOwnPropertyDescriptor(w.Node.prototype, "textContent");
+  Object.defineProperty(w.Node.prototype, "textContent", {
+    get() { if (this.id === "g") reads++; return textContent.get.call(this); },
+    set(value) { textContent.set.call(this, value); },
+    configurable: true,
+  });
+  w.document.getElementById("g").innerHTML = rows("nm");
+  await tick();
+  Object.defineProperty(w.Node.prototype, "textContent", textContent);
+  assert.ok(reads <= 2, `container text read ${reads} times`);
+});
+
+test("the first token of a streamed reply does not re-read the whole thread", async () => {
+  const turn = (text) => `<div class="turn"><div class="bubble"><div class="md"><p>${text}</p></div></div></div>`;
+  const { w } = boot(`<main><div id="thread">${Array.from({ length: 200 }, (_, i) => turn(`${HUMAN_P} ${i}`)).join("")}</div></main>`);
+  await tick();
+  const thread = w.document.getElementById("thread");
+  thread.insertAdjacentHTML("beforeend", turn(""));
+  await tick();
+  let visited = 0;
+  const createTreeWalker = w.document.createTreeWalker.bind(w.document);
+  /* jsdom's own selector engine walks without a filter; only the scanner's walks are counted. */
+  w.document.createTreeWalker = (root, what, filter) => createTreeWalker(root, what, filter && {
+    acceptNode(node) {
+      visited++;
+      return filter.acceptNode(node);
+    },
+  });
+  thread.lastElementChild.querySelector("p").textContent = "Sure";
+  await tick();
+  assert.ok(visited < 50, `${visited} nodes visited for one token in a thread of 200 turns`);
+});
+
+test("a block emptied while off the page and refilled after it returns re-splits its surroundings", async () => {
+  const { w } = boot(`<div id="o">Our pricing is honestly not just fair for a team this size <span id="slot"></span> but also simple enough that everyone can explain it in a minute.</div><div id="park"><div id="y"><p id="p">Saved draft text here.</p></div></div>`);
+  await tick();
+  const y = w.document.getElementById("y");
+  const p = w.document.getElementById("p");
+  y.remove();
+  await tick();
+  p.textContent = "";
+  await tick();
+  w.document.getElementById("slot").append(y);
+  await tick();
+  p.textContent = "Loaded.";
+  await tick();
+  assert.deepStrictEqual(highlightedTexts(w), []);
+});

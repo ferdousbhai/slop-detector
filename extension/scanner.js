@@ -74,15 +74,18 @@
     });
   }
 
-  /* A <br> counts as text here, as it does in a full walk, though it adds nothing to textContent. */
+  /* Stops at the first readable node, so a block with text costs a few steps however large it is.
+     Reading textContent instead would copy all of a long thread's text on every check. */
   function hasReadableText(el) {
-    if (isHiddenSubtree(el) || (el.textContent === "" && !el.querySelector("br"))) return false;
-    return readableWalker(el).nextNode() !== null;
+    return !isHiddenSubtree(el) && readableWalker(el).nextNode() !== null;
   }
 
   /* Blocks known to contain text, their own or a nested block's. A nested block that gains or loses all
      of its text changes where the blocks around it split into paragraphs, so they are read again too. */
   let blocksWithText = new WeakSet();
+  /* Blocks with text of their own, outside any nested block. Only these split into paragraphs around
+     a nested block, so only these are worth reading again when a nested block's text appears. */
+  let blocksOwningText = new WeakSet();
 
   function markContainsText(block) {
     for (let b = block; b && b !== document.body && !blocksWithText.has(b); b = blockOf(b.parentNode)) {
@@ -106,7 +109,10 @@
       const block = blockOf(n);
       const crossed = lastBlock !== null && lastBlock !== block;
       lastBlock = block;
-      if (block) markContainsText(block);
+      if (block) {
+        blocksOwningText.add(block);
+        markContainsText(block);
+      }
       if (!block || processedBlocks.has(block)) return;
       if (!blocks.has(block)) blocks.set(block, []);
       else if (crossed) blocks.get(block).push(GAP);
@@ -268,8 +274,12 @@
            ranges long gone. Everything that arrives is read as new. */
         for (const node of record.addedNodes) {
           if (node.nodeType !== Node.ELEMENT_NODE) continue;
-          stale.add(node);
-          for (const el of node.querySelectorAll("*")) stale.add(el);
+          /* What was known about its text may have changed while it was away, so that is forgotten too. */
+          for (const el of [node, ...node.querySelectorAll("*")]) {
+            stale.add(el);
+            blocksWithText.delete(el);
+            blocksOwningText.delete(el);
+          }
           dirty.add(node);
         }
       }
@@ -284,18 +294,29 @@
         dirty = new Set();
         const roots = new Set();
         const enclosing = new Set();
+        /* A block is checked once per frame. When a thousand rows arrive under one container, the
+           container's text is read once, not once per row. */
+        const checked = new Set();
+        const changedOnce = (block) => {
+          if (checked.has(block)) return false;
+          checked.add(block);
+          return textStateChanged(block);
+        };
         for (const root of changed) {
           const owner = root === looseTextRoot ? root : blockOf(root);
           if (!owner) continue;
           roots.add(looseOrBlock(owner));
           if (owner === looseTextRoot || owner === document.body) continue;
-          /* Each block around one that gained or lost all its text is read again, up to the first whose
-             own state held, since past that point every split stays where it was. */
-          for (let inner = owner; textStateChanged(inner);) {
+          /* The walk climbs while blocks gain or lose all their text, up to the first whose own state
+             held, since past that point every split stays where it was. Along the way only a block
+             with text of its own is read again: a text-free wrapper has nothing to re-split. */
+          for (let inner = owner; changedOnce(inner);) {
             const outer = blockOf(inner.parentNode);
             if (!outer) break;
-            enclosing.add(outer);
-            roots.add(looseOrBlock(outer));
+            if (outer === document.body || blocksOwningText.has(outer)) {
+              enclosing.add(outer);
+              roots.add(looseOrBlock(outer));
+            }
             if (outer === document.body) break;
             inner = outer;
           }
@@ -336,6 +357,7 @@
     allRanges = [];
     processedBlocks = new WeakSet();
     blocksWithText = new WeakSet();
+    blocksOwningText = new WeakSet();
     reportFindingCount();
   }
 
