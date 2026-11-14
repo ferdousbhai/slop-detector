@@ -31,8 +31,16 @@ chrome.runtime.onMessage.addListener((message, sender) => {
   updateAction(sender.tab.id, message.count);
 });
 
+/* "loading" also fires for pushState and hash changes, where the document and its highlights stay.
+   Once the tab settles, the page still there is asked for its count; a new page has no listener yet
+   and reports on its own after its first scan. */
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
   if (changeInfo.status === "loading") updateAction(tabId, 0);
+  if (changeInfo.status === "complete") {
+    chrome.tabs.sendMessage(tabId, { type: "slop:report-count" }).catch(() => {
+      /* No content script answers on pages it cannot run on, or before it has loaded. */
+    });
+  }
 });
 
 async function openSelection(text, tab) {

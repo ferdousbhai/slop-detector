@@ -56,14 +56,29 @@
      is two paragraphs, and no finding may reach across the block in between. */
   const GAP = null;
 
+  function isHiddenSubtree(el) {
+    return SKIP_TAGS.has(el.tagName.toUpperCase()) || el.isContentEditable || el.getAttribute("aria-hidden") === "true";
+  }
+
   function readableWalker(root) {
     return document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT, {
       acceptNode(n) {
-        if (n.nodeType === Node.ELEMENT_NODE && n.tagName !== "BR") return NodeFilter.FILTER_SKIP;
+        /* Rejecting a hidden element skips everything inside it, so a long <pre> costs one step. */
+        if (n.nodeType === Node.ELEMENT_NODE && n.tagName !== "BR") {
+          return isHiddenSubtree(n) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_SKIP;
+        }
         return isReadable(n) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
       },
     });
   }
+
+  function hasReadableText(el) {
+    return el.textContent !== "" && !isHiddenSubtree(el) && readableWalker(el).nextNode() !== null;
+  }
+
+  /* Whether a block held any text when it was last read. A nested block that gains or loses all of its
+     text changes where the block around it splits into paragraphs, so that block is read again too. */
+  let blocksWithText = new WeakSet();
 
   function collectBlocks(root) {
     const blocks = new Map();
@@ -72,6 +87,7 @@
       const block = blockOf(n);
       const crossed = lastBlock !== null && lastBlock !== block;
       lastBlock = block;
+      if (block) blocksWithText.add(block);
       if (!block || processedBlocks.has(block)) return;
       if (!blocks.has(block)) blocks.set(block, []);
       else if (crossed) blocks.get(block).push(GAP);
@@ -79,11 +95,16 @@
     };
 
     if (root === looseTextRoot) {
-      /* Only the text straight under <body> belongs to the <body> block, so only that is read. */
+      /* Only the text straight under <body> belongs to the <body> block, so only that is read. An
+         element splits it only when it has text of its own, as in a full walk, and that is checked
+         only between two runs of loose text, so a page with none costs one step per child. */
+      let between = [];
       for (const child of document.body.childNodes) {
-        /* An element splits the loose text only when it has text of its own, as in a full walk. */
-        if (isReadable(child)) add(child);
-        else if (child.nodeType === Node.ELEMENT_NODE && readableWalker(child).nextNode()) lastBlock = child;
+        if (isReadable(child)) {
+          if (lastBlock !== null && between.some(hasReadableText)) lastBlock = between[0];
+          between = [];
+          add(child);
+        } else if (child.nodeType === Node.ELEMENT_NODE && lastBlock !== null) between.push(child);
       }
       return blocks;
     }
@@ -149,7 +170,7 @@
   function scan(roots) {
     if (!scanEnabled) return;
     for (const root of roots) {
-      if (root !== looseTextRoot && !root.isConnected) continue;
+      if (root === looseTextRoot ? !document.body : !root.isConnected) continue;
       for (const [block, nodes] of collectBlocks(root)) lintBlock(block, nodes);
     }
     updateFindingCount();
@@ -205,19 +226,24 @@
     let dirty = new Set();
     let pending = false;
     const observedBody = document.body;
+    const looseOrBlock = (block) => (block === document.body ? looseTextRoot : block);
     observer = new MutationObserver((records) => {
-      /* Turbo and similar routers swap in a new <body> on navigation. Everything read so far is gone. */
-      if (document.body !== observedBody) {
+      /* Turbo and similar routers swap in a new <body> on navigation, and a <body> taken out and put
+         back loses its ranges without changing identity. Either way everything read so far is gone. */
+      const bodyArrived = records.some((record) => [...record.addedNodes].includes(document.body));
+      if (document.body !== observedBody || bodyArrived) {
         stopScan();
         startScan();
         return;
       }
       const stale = new Set();
       for (const record of records) {
+        /* <html> is watched only to see the <body> change. Nothing outside <body> is read. */
+        if (record.target === document.documentElement) continue;
         const block = blockOf(record.target);
         if (block) {
           stale.add(block);
-          dirty.add(block === document.body ? looseTextRoot : block);
+          dirty.add(looseOrBlock(block));
         }
         /* An element can come back after a detour off the page, still marked as read and with its
            ranges long gone. Everything that arrives is read as new. */
@@ -236,10 +262,23 @@
         /* A node is read through the block it sits in now, which may not be where it first arrived.
            Reading the node alone would lint its block from part of its text and mark it as read. */
         const roots = new Set();
+        const enclosing = new Set();
         for (const root of dirty) {
           const owner = root === looseTextRoot ? root : blockOf(root);
-          if (owner) roots.add(owner === document.body ? looseTextRoot : owner);
+          if (!owner) continue;
+          roots.add(looseOrBlock(owner));
+          if (owner === looseTextRoot || owner === document.body) continue;
+          const hadText = blocksWithText.has(owner);
+          const hasText = hasReadableText(owner);
+          if (hasText) blocksWithText.add(owner);
+          else blocksWithText.delete(owner);
+          const outer = hadText === hasText ? null : blockOf(owner.parentNode);
+          if (outer) {
+            enclosing.add(outer);
+            roots.add(looseOrBlock(outer));
+          }
         }
+        invalidateBlocks(enclosing);
         dirty = new Set();
         scan(roots);
       });
@@ -275,6 +314,7 @@
     highlight = null;
     allRanges = [];
     processedBlocks = new WeakSet();
+    blocksWithText = new WeakSet();
     reportFindingCount();
   }
 
@@ -291,6 +331,14 @@
      the tab navigated away and this script does not run again. */
   window.addEventListener("pageshow", (event) => {
     if (!event.persisted) return;
+    lastReportedCount = null;
+    reportFindingCount();
+  });
+
+  /* A same-document navigation (pushState, a hash link) clears the badge but keeps the page, so the
+     background asks for the count again once the tab settles. */
+  chrome.runtime.onMessage.addListener((message, sender) => {
+    if (message?.type !== "slop:report-count" || sender.id !== chrome.runtime.id) return;
     lastReportedCount = null;
     reportFindingCount();
   });

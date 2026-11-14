@@ -25,7 +25,7 @@ test("background maps scanner counts to tab-scoped action state", async () => {
   const chrome = {
     runtime: { onInstalled: event(), onMessage },
     contextMenus: { create() {}, onClicked: event() },
-    tabs: { onUpdated },
+    tabs: { onUpdated, sendMessage: async (tabId, message) => calls.push(["ask", tabId, message.type]) },
     storage: { session: { set: async () => {} } },
     action: {
       setBadgeBackgroundColor: async (details) => calls.push(["color", details]),
@@ -53,6 +53,12 @@ test("background maps scanner counts to tab-scoped action state", async () => {
     ["text", { tabId: 7, text: "" }],
     ["title", { tabId: 7, title: "Slop Detector" }],
   ]);
+
+  /* "loading" also fires for pushState; once the tab settles, the page that is still there is asked again. */
+  calls.length = 0;
+  onUpdated.dispatch(7, { status: "complete" });
+  await tick();
+  assert.deepEqual(calls, [["ask", 7, "slop:report-count"]]);
 });
 
 test("context-menu selections open in the extension popup", async () => {

@@ -43,6 +43,7 @@ function boot(html, { autoScanPages = true, supportsHighlights = true, orphaned 
   }
 
   const listeners = [];
+  const runtimeListeners = [];
   const messages = [];
   const store = { autoScanPages };
   w.chrome = {
@@ -58,6 +59,8 @@ function boot(html, { autoScanPages = true, supportsHighlights = true, orphaned 
       onChanged: { addListener: (fn) => listeners.push(fn) },
     },
     runtime: {
+      id: "slop-detector-test",
+      onMessage: { addListener: (fn) => runtimeListeners.push(fn) },
       sendMessage: (message) => {
         // An orphaned content script gets a synchronous throw, not a rejected promise.
         if (orphaned) throw new Error("Extension context invalidated.");
@@ -69,7 +72,8 @@ function boot(html, { autoScanPages = true, supportsHighlights = true, orphaned 
 
   w.eval(fs.readFileSync(extensionFile("engine.js"), "utf8"));
   w.eval(fs.readFileSync(extensionFile("scanner.js"), "utf8"));
-  return { messages, w, observerStats, set: (k, v) => w.chrome.storage.sync.set({ [k]: v }) };
+  const fromBackground = (message) => runtimeListeners.forEach((fn) => fn(message, { id: "slop-detector-test" }));
+  return { messages, w, observerStats, fromBackground, set: (k, v) => w.chrome.storage.sync.set({ [k]: v }) };
 }
 
 const tick = () => new Promise((r) => setTimeout(r, 60));
@@ -317,7 +321,7 @@ test("a text change rescans its own block, not the document", async () => {
   const stream = w.document.getElementById("stream");
   stream.firstChild.appendData(` ${SLOP_P}`);
   await tick();
-  assert.deepStrictEqual(roots, [stream]);
+  assert.ok(roots.length > 0 && roots.every((root) => root === stream), "only the changed paragraph is walked");
   assert.ok(highlightedTexts(w).some((t) => /finds you well/i.test(t)));
 });
 
@@ -395,4 +399,85 @@ test("an unrelated change leaves loose <body> findings as they were", async () =
   w.document.getElementById("p").remove();
   await tick();
   assert.deepStrictEqual(highlightedTexts(w), before);
+});
+
+test("the background can ask for the count again after a same-document navigation", async () => {
+  const { messages, w, fromBackground } = boot(`<p>${SLOP_P}</p>`);
+  await tick();
+  const count = lastFindingCount(messages);
+  const sent = messages.length;
+  w.history.pushState({}, "", "/next");
+  fromBackground({ type: "slop:report-count" });
+  assert.strictEqual(messages.length, sent + 1);
+  assert.strictEqual(lastFindingCount(messages), count);
+});
+
+test("a nested block that gains or loses its text re-splits the block around it", async () => {
+  const lead = "The launch went fine and it is not just";
+  const tail = " a tool, but a platform for everyone who works here with us.";
+  const { w } = boot(`<div>${lead}<p id="slot"></p>${tail}</div>`);
+  await tick();
+  assert.strictEqual(highlightedTexts(w).length, 1, "an empty block does not split the sentence");
+  const slot = w.document.getElementById("slot");
+  slot.textContent = HUMAN_P;
+  await tick();
+  assert.deepStrictEqual(highlightedTexts(w), [], "a block with text does");
+  slot.textContent = "";
+  await tick();
+  assert.strictEqual(highlightedTexts(w).length, 1);
+
+  const loose = boot(`Our pricing is honestly not just fair for a team this size <span id="s"></span> but also simple enough that everyone can explain it in a minute.`);
+  await tick();
+  assert.strictEqual(highlightedTexts(loose.w).length, 1);
+  loose.w.document.getElementById("s").textContent = "Pricing";
+  await tick();
+  assert.deepStrictEqual(highlightedTexts(loose.w), []);
+});
+
+test("a <body> taken out and put back in the same task is read again", async () => {
+  const { messages, w } = boot(`<p>${SLOP_P}</p>`);
+  await tick();
+  const before = highlightedTexts(w).length;
+  const body = w.document.body;
+  body.remove();
+  w.document.documentElement.append(body);
+  await tick();
+  assert.strictEqual(highlightedTexts(w).length, before);
+  assert.strictEqual(lastFindingCount(messages), before);
+});
+
+test("a queued rescan survives the <body> being removed before it runs", async () => {
+  const { w } = boot(`<p>${SLOP_P}</p>`);
+  await tick();
+  const errors = [];
+  w.addEventListener("error", (event) => errors.push(event.error));
+  w.document.body.append("x");
+  await new Promise((resolve) => setImmediate(resolve));
+  w.document.body.remove();
+  await tick();
+  assert.deepStrictEqual(errors, []);
+});
+
+test("elements outside <body> are never read", async () => {
+  const { w } = boot(`<p>${HUMAN_P}</p>`);
+  await tick();
+  const outside = w.document.createElement("div");
+  outside.textContent = SLOP_P;
+  w.document.documentElement.append(outside);
+  await tick();
+  assert.deepStrictEqual(highlightedTexts(w), []);
+});
+
+test("a body-level change on a page of hidden code costs one step per child", async () => {
+  const lines = Array.from({ length: 5000 }, (_, i) => `<span>line ${i} of the listing</span>\n`).join("");
+  const { w } = boot(`<div id="root"><pre>${lines}</pre></div>`);
+  await tick();
+  let checks = 0;
+  const tagName = Object.getOwnPropertyDescriptor(w.Element.prototype, "tagName");
+  Object.defineProperty(w.Element.prototype, "tagName", { get() { checks++; return tagName.get.call(this); }, configurable: true });
+  const toast = w.document.createElement("div");
+  w.document.body.append(toast);
+  await tick();
+  Object.defineProperty(w.Element.prototype, "tagName", tagName);
+  assert.ok(checks < 200, `${checks} element checks for one appended <div>`);
 });
