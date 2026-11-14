@@ -41,7 +41,12 @@ test("uniform sentence length flagged", () => {
     "The team completed the quarterly report on schedule today. " +
     "The results exceeded our initial projections by several points. " +
     "The board reviewed the findings during the afternoon session. " +
-    "The next milestone arrives at the end of this month.";
+    "The next milestone arrives at the end of this month. " +
+    "The steering group meets again on the first of March.";
+  const four = uniform.split(". ").slice(0, 4).join(". ") + ".";
+  assert.ok(!analyze(four).findings.some((f) => f.ruleId === "uniform-sentences"), "four sentences are too few to judge");
+  const wrapped = "The plan needs a careful review before the\nboard meets on Friday. I can send it tonight. Does that\nwork for everyone on the list, or should we wait until\nMonday? Either is fine. Tell me which you would prefer.";
+  assert.ok(!analyze(wrapped).findings.some((f) => f.ruleId === "uniform-sentences"), "wrapped lines are not sentences");
   assert.ok(analyze(uniform).findings.some((f) => f.ruleId === "uniform-sentences"));
 });
 
@@ -161,4 +166,24 @@ test("a leading bold run reported by the caller counts as a label", () => {
   assert.ok(finding);
   assert.strictEqual(text.slice(finding.start, finding.end), "Fast startup:");
   assert.ok(!ruleIds(text).includes("label-first"));
+});
+
+test("score discounts findings by text length", () => {
+  const filler = "We met at the coffee shop around nine and argued about the playoffs for an hour. ";
+  const tell = "In order to ship we need a robust plan. ";
+  const short = analyze(filler + tell.repeat(3));
+  const long = analyze(filler.repeat(300) + tell.repeat(3));
+  assert.ok(short.score >= 20, `short text with six findings should be suspicious, got ${short.score}`);
+  assert.strictEqual(long.verdict, "human", `the same findings in ${long.wordCount} words scored ${long.score}`);
+});
+
+test("every rule has one severity and an instruction, and docs/rules.md lists it", () => {
+  const { rules } = require("./extension/engine.js");
+  const table = require("node:fs").readFileSync(require("node:path").join(__dirname, "docs", "rules.md"), "utf8");
+  for (const [id, rule] of Object.entries(rules)) {
+    assert.match(rule.severity, /^(?:major|minor)$/, id);
+    assert.ok(rule.instruction.length > 0, id);
+    const level = rule.severity === "major" ? "error" : "warning";
+    assert.ok(table.includes(`| \`${id}\` | ${level} |`), `docs/rules.md is missing or mislabels ${id}`);
+  }
 });

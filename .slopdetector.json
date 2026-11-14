@@ -2,6 +2,8 @@
   "ignore": [
     "extension/engine.js",
     "test*.js",
+    "fixtures/**",
+    "docs/rules.md",
     "store-assets/**",
     "STORE_LISTING.md",
     "LICENSE"

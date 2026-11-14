@@ -203,6 +203,41 @@ test("invalid config shapes produce actionable errors", () => {
   assert.match(result.stderr, /"ignore" must be an array of strings/);
 });
 
+test("a misspelled rule id in config is rejected instead of ignored", () => {
+  const directory = tempDir();
+  fs.writeFileSync(path.join(directory, ".slopdetector.json"), JSON.stringify({ rules: { "ai-vocabularly": "off" } }));
+  const result = spawnSync(process.execPath, [cli], { cwd: directory, encoding: "utf8" });
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /unknown rule "ai-vocabularly"/);
+  assert.match(result.stderr, /ai-vocabulary/);
+});
+
+test("CRLF prose is linted at the same positions as LF prose", () => {
+  const lf = "Opening line of prose.\n\nLet us delve into it.\n";
+  const crlf = lf.replace(/\n/g, "\r\n");
+  const [finding] = lintText(crlf, { filename: "notes.md", segments: segmentsForFile("notes.md", crlf) });
+  assert.deepEqual([finding.ruleId, finding.line, finding.column, finding.text], ["ai-vocabulary", 3, 8, "delve"]);
+  assert.equal(lintText(lf, { filename: "notes.md", segments: segmentsForFile("notes.md", lf) }).length, 1);
+});
+
+test("public-domain human prose raises no errors and few warnings", () => {
+  /* Strunk's 1918 text is from Project Gutenberg #37134 and the SQLite README is dedicated to the
+     public domain by its authors. Both predate language models, so every finding here is a false positive. */
+  const directory = path.join(__dirname, "fixtures", "human");
+  let words = 0;
+  const diagnostics = [];
+  for (const name of fs.readdirSync(directory)) {
+    const filename = path.join(directory, name);
+    words += fs.readFileSync(filename, "utf8").split(/\s+/).length;
+    diagnostics.push(...lintFile(filename));
+  }
+  assert.ok(words > 10000, "fixture went missing");
+  const describe = (items) => items.map((d) => `${path.basename(d.file)}:${d.line} ${d.ruleId} ${d.text.slice(0, 60)}`).join("\n");
+  const errors = diagnostics.filter((d) => d.level === "error");
+  assert.equal(errors.length, 0, describe(errors));
+  assert.ok(diagnostics.length <= words / 1500, `more than one warning per 1,500 words:\n${describe(diagnostics)}`);
+});
+
 test("agent mode emits deterministic JSON revision feedback and fails on errors", () => {
   const result = spawnSync(process.execPath, [cli, "agent", "--format", "json"], {
     input: "Great question! I'd be happy to delve into this topic.",

@@ -2,7 +2,7 @@
 
 ## Upload package
 
-Upload `dist/slop-detector-chrome-store-v1.1.1.zip`. It contains the committed
+Upload `dist/slop-detector-chrome-store-v1.2.0.zip`. It contains the committed
 `extension/` tree with `manifest.json` at the ZIP root. Build it from a clean
 working tree:
 
@@ -27,8 +27,10 @@ Red-pen linting for AI-flavored writing.
 Slop Detector lints prose for the telltale patterns of AI-generated writing —
 chatbot phrases ("I hope this message finds you well"), puffery ("marks a
 pivotal moment"), vague attribution ("experts believe"), binary contrasts
-("It's not just X, it's Y"), em-dash density, uniform sentence rhythm, emoji
-bullets, and a larger catalog of recurring prose patterns.
+("It's not just X, it's Y"), staged knockdowns ("…is the obvious reading, and
+it is wrong"), costume metaphors, clipped fragment runs, coy headings, em-dash
+density, uniform sentence rhythm, emoji bullets, and a larger catalog of
+recurring prose patterns.
 
 - Auto-scan: visible text on every page is linted automatically. Findings get
   a wavy red underline via the CSS Custom Highlight API. Existing page text is

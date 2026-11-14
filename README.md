@@ -78,6 +78,10 @@ Create `.slopdetector.json` in a repository, or
 
 Rule levels are `"off"`, `"warn"`, or `"error"`. Repository settings override
 user settings. Use `--config path/to/config.json` to select a file explicitly.
+An unknown rule name is a configuration error.
+
+[`docs/rules.md`](docs/rules.md) lists every rule with its default level and an
+example.
 
 ## Project layout
 
@@ -87,7 +91,8 @@ bin/                  repository-development CLI
 lib/                  repository linting
 scripts/              Chrome packaging and release verification
 .github/workflows/    CI and Chrome release preparation
-docs/                  architecture and release documentation
+docs/                 architecture, rule, and release documentation
+fixtures/human/       public-domain prose that must stay free of errors
 ```
 
 The npm project is private and exists only to install development dependencies
@@ -104,8 +109,11 @@ npm test
 
 `npm run check` lints this repository with its own CLI. `.slopdetector.json`
 exempts the files that hold slop on purpose: the rule catalog in
-`extension/engine.js`, the test fixtures, the store listing and promo copy that
-quote the patterns they describe, and the MIT license text.
+`extension/engine.js`, the tests, the rule table, the store listing and promo
+copy that quote the patterns they describe, and the MIT license text. It also
+exempts `fixtures/human/`, which a test checks instead: Strunk's 1918 *The
+Elements of Style* and the SQLite README, both in the public domain, must raise
+no errors.
 
 ## Release
 
