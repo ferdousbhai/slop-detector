@@ -229,3 +229,16 @@ test("nothing is ever hidden, even certified slop in a feed", async () => {
   assert.strictEqual(w.document.body.querySelectorAll("[class^='slop-detector-']").length, 0, "no extension UI may be injected");
   assert.ok(highlightedTexts(w).length > 0, "slop still underlined");
 });
+
+test("short headings are checked for coy wording", async () => {
+  const { w } = boot(`<h2>What "exhausted" means</h2><h2>Privacy and limitations</h2><p>What "exhausted" means</p>`);
+  await tick();
+  assert.deepStrictEqual(highlightedTexts(w), [`What "exhausted" means`]);
+});
+
+test("a bold label that opens a block is marked", async () => {
+  const body = "the page renders before the fonts arrive and nothing shifts once they finally do load";
+  const { w } = boot(`<p><strong>Fast startup:</strong> ${body}</p><p>${body} with <strong>Fast startup:</strong> late</p>`);
+  await tick();
+  assert.deepStrictEqual(highlightedTexts(w), ["Fast startup:"]);
+});

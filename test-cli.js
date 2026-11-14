@@ -117,6 +117,16 @@ test("HTML scanning checks visible text and content attributes but skips code an
   assert.ok(!diagnostics.some((item) => item.text === "robust"));
 });
 
+test("HTML headings carry heading context to the engine", () => {
+  const text = `<h2>Why this <em>matters</em></h2><h2>Why this matters</h2><p>Why this matters</p>`;
+  const diagnostics = lintText(text, {
+    filename: "page.html",
+    segments: segmentsForFile("page.html", text),
+  });
+  assert.deepStrictEqual(diagnostics.map((d) => [d.ruleId, d.text]), [["coy-header", "Why this matters"]]);
+  assert.strictEqual(diagnostics[0].column, text.indexOf("<h2>Why this matters") + 5);
+});
+
 test("source scanning checks comments, strings, and JSX text without linting identifiers", () => {
   const text = [
     "const robust = true;",

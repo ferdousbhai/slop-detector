@@ -98,3 +98,67 @@ test("single vocab word is only minor, not damning", () => {
   assert.ok(r.findings.some((f) => f.ruleId === "ai-vocabulary"));
   assert.ok(r.verdict !== "slop", `one word should not certify slop, got ${r.score}`);
 });
+
+const ruleIds = (text, options) => analyze(text, options).findings.map((f) => f.ruleId);
+
+test("structural tics are each caught by their own rule", () => {
+  const cases = [
+    ["binary-contrast", "It is not a wrong answer. It is a non-answer."],
+    ["significance-designation", "It is the leg that answers the actual question."],
+    ["abstraction-agency", "Median hides it."],
+    ["abstraction-agency", "The table shows it."],
+    ["deferred-noun", "Five of those six rows are one cluster. The sixth is not."],
+    ["aphoristic-closer", "It is the kind of number that looks like evidence and is not."],
+    ["strawman-knockdown", "\"It thinks twice as long\" is the obvious reading, and it is wrong."],
+    ["fragment-cadence", "Six legs. One GPU, one server build, one sampler, one question set."],
+    ["dressed-metaphor", "That is information loss wearing the costume of a style fix."],
+    ["label-first", "- **User Experience:** the page loads before the fonts do."],
+  ];
+  for (const [want, text] of cases) {
+    assert.ok(ruleIds(text).includes(want), `${want} missed: ${text}`);
+  }
+});
+
+test("plain statements of the same shapes stay clean", () => {
+  const clean = [
+    "The variable is not defined, it is set later by the installer.",
+    "This is not supported. It is possible to work around it with a flag.",
+    "The file is not empty, its header is forty bytes long.",
+    "She says so. He hides it.",
+    "Release 1.2.3. fixes the crash, and 3.5 seconds is the new timeout.",
+    "- **Theme:** the name of the active color scheme.",
+    "**Note:** restart the service after editing the file.",
+    "Fixed a bug in the parser. Fixed a bug in the lexer. Fixed a bug in the printer.",
+  ];
+  for (const text of clean) assert.deepStrictEqual(ruleIds(text), [], text);
+});
+
+test("a narrower match inside a wider one of the same rule is reported once", () => {
+  const r = analyze("It is the kind of number that looks like evidence and is not.");
+  assert.strictEqual(r.findings.filter((f) => f.ruleId === "aphoristic-closer").length, 1);
+});
+
+test("fragment runs and repeated openings are flagged", () => {
+  assert.ok(ruleIds("We shipped it on Friday. Fast. Cheap. Reliable. Then the pager went off.").includes("fragment-cadence"));
+  assert.ok(ruleIds("It was a message. It was a permission slip. It was an out.").includes("fragment-cadence"));
+  assert.ok(!ruleIds("Sounds good. See you at nine, and bring the laptop.").includes("fragment-cadence"));
+});
+
+test("coy and thesis-shaped headers are flagged, labels and questions are not", () => {
+  for (const title of ["What \"exhausted\" means", "The one gap that does clear the bar", "Why this matters"]) {
+    assert.ok(ruleIds(`## ${title}\n\nBody text follows here.`).includes("coy-header"), `markdown: ${title}`);
+    assert.ok(ruleIds(title, { heading: true }).includes("coy-header"), `heading option: ${title}`);
+    assert.ok(!ruleIds(title).includes("coy-header"), `not a heading: ${title}`);
+  }
+  for (const title of ["How it works", "How to install the extension", "Why does this matter?", "Privacy and limitations"]) {
+    assert.ok(!ruleIds(title, { heading: true }).includes("coy-header"), title);
+  }
+});
+
+test("a leading bold run reported by the caller counts as a label", () => {
+  const text = "Fast startup: the page renders before the fonts arrive.";
+  const finding = analyze(text, { boldLead: "Fast startup:".length }).findings.find((f) => f.ruleId === "label-first");
+  assert.ok(finding);
+  assert.strictEqual(text.slice(finding.start, finding.end), "Fast startup:");
+  assert.ok(!ruleIds(text).includes("label-first"));
+});

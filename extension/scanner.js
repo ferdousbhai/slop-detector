@@ -6,6 +6,10 @@
   const SKIP_TAGS = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "TEXTAREA", "INPUT", "SELECT", "CODE", "PRE", "SVG", "IFRAME"]);
   const BLOCK_TAGS = new Set(["P", "DIV", "LI", "BLOCKQUOTE", "ARTICLE", "SECTION", "TD", "DD", "FIGCAPTION", "H1", "H2", "H3", "H4", "H5", "H6"]);
   const MIN_WORDS = 15;
+  /* A heading is short by nature, and the heading rule reads nothing but its wording. */
+  const MIN_HEADING_WORDS = 3;
+  const HEADING_TAG = /^H[1-6]$/;
+  const BOLD_TAGS = new Set(["STRONG", "B"]);
 
   let processedBlocks = new WeakSet();
   let scanEnabled = true;
@@ -48,6 +52,24 @@
     return blocks;
   }
 
+  /* Flattened text loses markup, so the label rule needs to be told where a leading bold run ends. */
+  function boldLeadLength(block, offsets) {
+    let end = 0;
+    for (const { node, end: nodeEnd } of offsets) {
+      if (!node.nodeValue.trim()) {
+        if (end === 0) continue;
+        break;
+      }
+      let bold = false;
+      for (let el = node.parentElement; el && el !== block; el = el.parentElement) {
+        if (BOLD_TAGS.has(el.tagName)) bold = true;
+      }
+      if (!bold) break;
+      end = nodeEnd;
+    }
+    return end;
+  }
+
   function lintBlock(block, textNodes) {
     let text = "";
     const offsets = [];
@@ -56,9 +78,10 @@
       text += node.nodeValue;
     }
     processedBlocks.add(block);
-    if (text.trim().split(/\s+/).length < MIN_WORDS) return;
+    const heading = HEADING_TAG.test(block.tagName);
+    if (text.trim().split(/\s+/).length < (heading ? MIN_HEADING_WORDS : MIN_WORDS)) return;
 
-    const result = globalThis.SlopEngine.analyze(text);
+    const result = globalThis.SlopEngine.analyze(text, { heading, boldLead: boldLeadLength(block, offsets) });
     for (const f of result.findings) {
       if (f.end <= f.start) continue;
       const startEntry = offsets.find((o) => f.start >= o.start && f.start < o.end);

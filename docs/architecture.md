@@ -20,11 +20,17 @@ bin/slop-detector.js
 ### Detection engine
 
 `extension/engine.js` is the canonical rule source. Its pattern catalog draws
-on dmmulroy/anti-slop (architecture), the Cursor plugins unslop skill, and
-petergyang/no-ai-slop (pattern lists). It exposes
+on dmmulroy/anti-slop (architecture), the Cursor plugins unslop skill,
+petergyang/no-ai-slop (pattern lists), and the declauding skill in
+oaustegard/claude-skills (structural tics). It exposes
 `globalThis.SlopEngine` when loaded as a Chrome script and `module.exports` when
 required by Node. Keeping this small dual-runtime wrapper avoids a bundler,
 copy step, or generated browser artifact.
+
+`analyze(text, options)` reads plain text, so callers pass the two facts that
+flattening removes. `heading` marks the text as a heading, and `boldLead` is the
+length of a bold run that opens the block. Markdown needs neither option because
+the engine reads `#` and `**` itself.
 
 ### Repository linter
 
@@ -43,7 +49,7 @@ The Chrome ZIP is created from `HEAD:extension`. Its manifest sits at the ZIP
 root, as required by the Chrome Web Store. Repository tooling, tests,
 documentation, and store-source assets are not included.
 
-## Why this is not a workspace
+## Single package, no workspace
 
 There is one private npm project and one canonical engine. Workspaces would add
 package manifests, linking, and build boundaries without creating an
