@@ -56,6 +56,15 @@
      is two paragraphs, and no finding may reach across the block in between. */
   const GAP = null;
 
+  function readableWalker(root) {
+    return document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT, {
+      acceptNode(n) {
+        if (n.nodeType === Node.ELEMENT_NODE && n.tagName !== "BR") return NodeFilter.FILTER_SKIP;
+        return isReadable(n) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+      },
+    });
+  }
+
   function collectBlocks(root) {
     const blocks = new Map();
     let lastBlock = null;
@@ -72,18 +81,14 @@
     if (root === looseTextRoot) {
       /* Only the text straight under <body> belongs to the <body> block, so only that is read. */
       for (const child of document.body.childNodes) {
+        /* An element splits the loose text only when it has text of its own, as in a full walk. */
         if (isReadable(child)) add(child);
-        else if (child.nodeType === Node.ELEMENT_NODE) lastBlock = child;
+        else if (child.nodeType === Node.ELEMENT_NODE && readableWalker(child).nextNode()) lastBlock = child;
       }
       return blocks;
     }
 
-    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT, {
-      acceptNode(n) {
-        if (n.nodeType === Node.ELEMENT_NODE && n.tagName !== "BR") return NodeFilter.FILTER_SKIP;
-        return isReadable(n) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
-      },
-    });
+    const walker = readableWalker(root);
     let n;
     while ((n = walker.nextNode())) add(n);
     return blocks;
@@ -199,7 +204,14 @@
     if (observer) return;
     let dirty = new Set();
     let pending = false;
+    const observedBody = document.body;
     observer = new MutationObserver((records) => {
+      /* Turbo and similar routers swap in a new <body> on navigation. Everything read so far is gone. */
+      if (document.body !== observedBody) {
+        stopScan();
+        startScan();
+        return;
+      }
       const stale = new Set();
       for (const record of records) {
         const block = blockOf(record.target);
@@ -221,19 +233,30 @@
       pending = true;
       requestAnimationFrame(() => {
         pending = false;
-        const roots = dirty;
+        /* A node is read through the block it sits in now, which may not be where it first arrived.
+           Reading the node alone would lint its block from part of its text and mark it as read. */
+        const roots = new Set();
+        for (const root of dirty) {
+          const owner = root === looseTextRoot ? root : blockOf(root);
+          if (owner) roots.add(owner === document.body ? looseTextRoot : owner);
+        }
         dirty = new Set();
         scan(roots);
       });
     });
-    observer.observe(document.body, { childList: true, characterData: true, subtree: true });
+    if (observedBody) observer.observe(observedBody, { childList: true, characterData: true, subtree: true });
+    observer.observe(document.documentElement, { childList: true });
   }
 
   function startScan() {
-    /* A standalone SVG or XML document has no <body> and nothing to read. */
-    if (!document.body) return;
     if (!scanEnabled || !highlightSupported) {
       reportFindingCount();
+      return;
+    }
+    /* With no <body> there is nothing to read yet, but one may still be added. A standalone SVG or XML
+       document never gets one, and is only watched. */
+    if (!document.body) {
+      ensureObserver();
       return;
     }
     if (!highlight) {

@@ -356,3 +356,43 @@ test("a document with no <body> is left alone", async () => {
   assert.strictEqual(w.document.body, null);
   assert.strictEqual(messages.length, 0);
 });
+
+test("a page that swaps in a new <body> is scanned again", async () => {
+  const { messages, w } = boot(`<p>${HUMAN_P}</p><p>${SLOP_P}</p>`);
+  await tick();
+  const one = highlightedTexts(w).length;
+  assert.ok(one >= 3);
+  const body = w.document.createElement("body");
+  body.innerHTML = `${w.document.body.innerHTML}<p>${SLOP_P}</p>`;
+  w.document.body.replaceWith(body);
+  await tick();
+  assert.strictEqual(highlightedTexts(w).length, one * 2);
+  assert.strictEqual(lastFindingCount(messages), one * 2);
+  const later = w.document.createElement("p");
+  later.textContent = SLOP_P;
+  w.document.body.append(later);
+  await tick();
+  assert.strictEqual(highlightedTexts(w).length, one * 3);
+});
+
+test("an element added to one block and moved into another is read with its new block", async () => {
+  const { w } = boot(`<p id="p1">${HUMAN_P}</p><p id="p2">${SLOP_P}</p>`);
+  await tick();
+  const before = highlightedTexts(w).length;
+  const span = w.document.createElement("span");
+  span.textContent = "Note: ";
+  w.document.getElementById("p1").append(span);
+  w.document.getElementById("p2").prepend(span);
+  await tick();
+  assert.strictEqual(highlightedTexts(w).length, before);
+});
+
+test("an unrelated change leaves loose <body> findings as they were", async () => {
+  const { w } = boot(`Our pricing is honestly not just fair for a team this size <img src="x.png"> but also simple enough that everyone can explain it in a minute.<p id="p">hi</p>`);
+  await tick();
+  const before = highlightedTexts(w);
+  assert.strictEqual(before.length, 1);
+  w.document.getElementById("p").remove();
+  await tick();
+  assert.deepStrictEqual(highlightedTexts(w), before);
+});
