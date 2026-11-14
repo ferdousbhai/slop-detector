@@ -552,11 +552,16 @@
 
   function analyze(source, options = {}) {
     /* Typographic apostrophes and no-break spaces are one character each, so offsets stay valid. */
-    /* A URL is an address, not prose, and blanking it keeps every offset where it was. */
+    /* A URL is an address, not prose. It becomes a same-length run of slashes, which keeps every offset,
+       still counts as one word, and leaves a URL alone on a wrapped line from reading as a blank line.
+       Punctuation after it still ends the sentence. */
     const text = source
       .replace(/[\u2018\u2019]/g, "'")
       .replace(/\u00A0/g, " ")
-      .replace(/\b(?:https?:\/\/|www\.)[^\s<>"'`)\]]+/gi, (url) => " ".repeat(url.length));
+      .replace(/\b(?:https?:\/\/|www\.)[^\s<>"'`)\]]+/gi, (url) => {
+        const address = url.replace(/[.,;:!?]+$/, "");
+        return "/".repeat(address.length) + url.slice(address.length);
+      });
     const collected = [];
     for (const rule of rules) collected.push(...rule.run(text, options));
     for (const finding of collected) Object.assign(finding, RULES[finding.ruleId]);

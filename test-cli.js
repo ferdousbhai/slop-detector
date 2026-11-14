@@ -243,6 +243,8 @@ test("indented Markdown code blocks are skipped, but indented list continuations
   const lint = (text) => lintText(text, { filename: "a.md", segments: segmentsForFile("a.md", text) }).map((d) => d.text);
   assert.deepStrictEqual(lint("Configure the client first:\n\n    client = Client(retries=3)  # robust retry settings\n    client.enhance_logging()\n\nThen delve in.\n"), ["delve"]);
   assert.deepStrictEqual(lint("- First item of the list\n\n    A robust continuation of that item.\n"), ["robust"]);
+  const wrapped = "* The package in whose\n  folder this package lives.\n\n    Due to the fact that the parent moves, we delve into every edge.\n";
+  assert.deepStrictEqual(lint(wrapped), ["Due to the fact that", "delve"]);
 });
 
 test("Markdown fences open and close only on real fence lines", () => {

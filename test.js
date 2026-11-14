@@ -305,3 +305,14 @@ test("URLs are not prose, and spans end on a word", () => {
     assert.match(text.slice(finding.end, finding.end + 1), /^(?:[\s.,;:!?]|)$/, `span ends mid-word: ${text.slice(finding.start, finding.end)}`);
   }
 });
+
+test("a URL keeps its line and its sentence end", () => {
+  for (const text of [
+    "The mirror list lives at\nhttps://example.com/mirrors/list.txt\nand the catch: it only updates weekly, so check the date first.",
+    "The fix landed upstream in\nhttps://github.com/org/repo/pull/123\nbut the problem? It only ships in the next release next month.",
+  ]) assert.deepStrictEqual(ruleIds(text), [], text);
+  for (const text of [
+    "Read the guide at https://example.com/guide. Ultimately, the choice is yours to make here.",
+    "Read the guide at https://example.com/guide! Overall, the choice is yours to make here.",
+  ]) assert.ok(ruleIds(text).includes("recap-ending"), text);
+});
