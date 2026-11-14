@@ -30,6 +30,8 @@
      is one block and unrelated parts of the page are never read as one sentence. Text that sits
      straight under <body> has no such element, and <body> itself stands in. */
   function blockOf(node) {
+    /* A node off the page belongs to no block; an element can leave between a mutation and the frame. */
+    if (!node?.isConnected) return null;
     let outermost = null;
     for (let el = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement; el; el = el.parentElement) {
       if (BLOCK_TAGS.has(el.tagName)) return el;
@@ -72,13 +74,30 @@
     });
   }
 
+  /* A <br> counts as text here, as it does in a full walk, though it adds nothing to textContent. */
   function hasReadableText(el) {
-    return el.textContent !== "" && !isHiddenSubtree(el) && readableWalker(el).nextNode() !== null;
+    if (isHiddenSubtree(el) || (el.textContent === "" && !el.querySelector("br"))) return false;
+    return readableWalker(el).nextNode() !== null;
   }
 
-  /* Whether a block held any text when it was last read. A nested block that gains or loses all of its
-     text changes where the block around it splits into paragraphs, so that block is read again too. */
+  /* Blocks known to contain text, their own or a nested block's. A nested block that gains or loses all
+     of its text changes where the blocks around it split into paragraphs, so they are read again too. */
   let blocksWithText = new WeakSet();
+
+  function markContainsText(block) {
+    for (let b = block; b && b !== document.body && !blocksWithText.has(b); b = blockOf(b.parentNode)) {
+      blocksWithText.add(b);
+    }
+  }
+
+  /* Records whether `block` contains text now, and says whether that changed. */
+  function textStateChanged(block) {
+    const had = blocksWithText.has(block);
+    const has = hasReadableText(block);
+    if (has) blocksWithText.add(block);
+    else blocksWithText.delete(block);
+    return had !== has;
+  }
 
   function collectBlocks(root) {
     const blocks = new Map();
@@ -87,7 +106,7 @@
       const block = blockOf(n);
       const crossed = lastBlock !== null && lastBlock !== block;
       lastBlock = block;
-      if (block) blocksWithText.add(block);
+      if (block) markContainsText(block);
       if (!block || processedBlocks.has(block)) return;
       if (!blocks.has(block)) blocks.set(block, []);
       else if (crossed) blocks.get(block).push(GAP);
@@ -261,25 +280,27 @@
         pending = false;
         /* A node is read through the block it sits in now, which may not be where it first arrived.
            Reading the node alone would lint its block from part of its text and mark it as read. */
+        const changed = dirty;
+        dirty = new Set();
         const roots = new Set();
         const enclosing = new Set();
-        for (const root of dirty) {
+        for (const root of changed) {
           const owner = root === looseTextRoot ? root : blockOf(root);
           if (!owner) continue;
           roots.add(looseOrBlock(owner));
           if (owner === looseTextRoot || owner === document.body) continue;
-          const hadText = blocksWithText.has(owner);
-          const hasText = hasReadableText(owner);
-          if (hasText) blocksWithText.add(owner);
-          else blocksWithText.delete(owner);
-          const outer = hadText === hasText ? null : blockOf(owner.parentNode);
-          if (outer) {
+          /* Each block around one that gained or lost all its text is read again, up to the first whose
+             own state held, since past that point every split stays where it was. */
+          for (let inner = owner; textStateChanged(inner);) {
+            const outer = blockOf(inner.parentNode);
+            if (!outer) break;
             enclosing.add(outer);
             roots.add(looseOrBlock(outer));
+            if (outer === document.body) break;
+            inner = outer;
           }
         }
         invalidateBlocks(enclosing);
-        dirty = new Set();
         scan(roots);
       });
     });

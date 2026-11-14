@@ -481,3 +481,54 @@ test("a body-level change on a page of hidden code costs one step per child", as
   Object.defineProperty(w.Element.prototype, "tagName", tagName);
   assert.ok(checks < 200, `${checks} element checks for one appended <div>`);
 });
+
+test("a block added and a toast added and removed in one task are both handled", async () => {
+  const { messages, w } = boot(`<p>${HUMAN_P}</p>`);
+  await tick();
+  const errors = [];
+  w.addEventListener("error", (event) => errors.push(event.error));
+  const added = w.document.createElement("p");
+  added.textContent = SLOP_P;
+  w.document.body.append(added);
+  const toast = w.document.createElement("p");
+  toast.textContent = "Saved";
+  w.document.body.append(toast);
+  toast.remove();
+  await tick();
+  assert.deepStrictEqual(errors, []);
+  const marks = highlightedTexts(w).length;
+  assert.ok(marks >= 3);
+  assert.strictEqual(lastFindingCount(messages), marks);
+});
+
+test("text appearing in a block inside a text-free wrapper re-splits the text around the wrapper", async () => {
+  const lead = "Our pricing is honestly not just fair for a team of this size and shape, ";
+  const tail = "but also simple enough that everyone on the team can explain it in a minute.";
+  const empty = boot(`<div>${lead}<section><p id="p"></p></section>${tail}</div>`);
+  await tick();
+  assert.strictEqual(highlightedTexts(empty.w).length, 1);
+  empty.w.document.getElementById("p").textContent = "Shipping notes";
+  await tick();
+  assert.deepStrictEqual(highlightedTexts(empty.w), []);
+
+  const full = boot(`<div>${lead}<section><p id="p">Shipping notes</p></section>${tail}</div>`);
+  await tick();
+  assert.deepStrictEqual(highlightedTexts(full.w), []);
+  full.w.document.getElementById("p").textContent = "";
+  await tick();
+  assert.strictEqual(highlightedTexts(full.w).length, 1);
+});
+
+test("an element holding only line breaks splits loose text as it does on a fresh load", async () => {
+  const lead = "Key point: the build is fast and nothing shifts at all once fonts do load in time";
+  const tail = "delve into the rich tapestry of our robust ecosystem today and tomorrow friends";
+  const fresh = boot(`${lead}<li><br><br></li>${tail}`);
+  await tick();
+  const want = highlightedTexts(fresh.w);
+  assert.ok(want.includes("delve"));
+  const { w } = boot(`${lead}<li id="li"></li>${tail}`);
+  await tick();
+  w.document.getElementById("li").append(w.document.createElement("br"));
+  await tick();
+  assert.deepStrictEqual(highlightedTexts(w).sort(), [...want].sort());
+});
