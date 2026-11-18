@@ -22,6 +22,7 @@ and keep README.md and STORE_LISTING.md describing it.
 | Guarantee | Guarded by |
 |---|---|
 | Auto-scan underlines findings in visible page text. | `test-scanner.js`: "slop paragraph gets underline ranges on the exact phrases" |
+| Underline color follows the rule's severity: red for major, amber for minor. A minor finding inside a major one draws no second line but still counts and shows on hover. | `test-scanner.js`: "each underline is colored by its rule's severity, with major painted over minor" |
 | Hovering an underline shows every finding under the pointer with its rule ID, severity, and message. | `test-scanner.js`: "hovering an underline shows the rule and why it fired" |
 | The toolbar badge shows the page's finding count. | `test-extension.js`: "background maps scanner counts to tab-scoped action state" |
 | The popup checks pasted text and shows a verdict, a score, the marked text, and each finding's rule, severity, and message. | `extension/popup.js` (no automated test yet) |

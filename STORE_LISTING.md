@@ -33,8 +33,9 @@ density, uniform sentence rhythm, emoji bullets, and a larger catalog of
 recurring prose patterns.
 
 - Auto-scan: visible text on every page is linted automatically. Findings get
-  a wavy red underline via the CSS Custom Highlight API. Existing page text is
-  not wrapped, replaced, recolored, hidden, or removed.
+  a wavy underline via the CSS Custom Highlight API: red for major patterns,
+  amber for minor ones. Hover an underline to see the rule and why it fired.
+  Existing page text is not wrapped, replaced, recolored, hidden, or removed.
 - The toolbar badge shows the number of page findings.
 - Popup checker: paste a draft, get highlighted findings and a verdict —
   READS HUMAN / SUSPICIOUS / CERTIFIED SLOP.

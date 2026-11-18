@@ -17,7 +17,11 @@
   let processedBlocks = new WeakSet();
   let scanEnabled = true;
   let observer = null;
-  let highlight = null;
+  /* One highlight per severity, so CSS can color each, and every finding sits in exactly one. Two wavy
+     lines on one word tangle, so a minor finding inside a major one goes in "covered", which has no
+     style: it draws nothing, yet it still counts and the hover label still lists it. */
+  let highlights = null;
+  const HIGHLIGHT_NAMES = { major: "slop-major", minor: "slop-minor", covered: "slop-covered" };
   let allRanges = [];
   let lastReportedCount = null;
   let messagingAvailable = true;
@@ -193,7 +197,9 @@
         range.setEnd(endEntry.node, Math.min(f.end, endEntry.end) - endEntry.start);
         range.slopBlock = block;
         range.slopFinding = f;
-        highlight.add(range);
+        const major = f.severity === "major";
+        const covered = !major && result.findings.some((g) => g.severity === "major" && g.start <= f.start && g.end >= f.end);
+        highlights[major ? "major" : covered ? "covered" : "minor"].add(range);
         allRanges.push(range);
       } catch { /* Nodes can detach between traversal and Range construction. */ }
     }
@@ -211,7 +217,7 @@
   function removeRanges(shouldRemove) {
     allRanges = allRanges.filter((range) => {
       if (!shouldRemove(range)) return true;
-      highlight?.delete(range);
+      for (const h of Object.values(highlights ?? {})) h.delete(range);
       return false;
     });
   }
@@ -448,9 +454,10 @@
       ensureObserver();
       return;
     }
-    if (!highlight) {
-      highlight = new Highlight();
-      CSS.highlights.set("slop-mark", highlight);
+    if (!highlights) {
+      highlights = { major: new Highlight(), minor: new Highlight(), covered: new Highlight() };
+      highlights.major.priority = 1;
+      for (const [severity, name] of Object.entries(HIGHLIGHT_NAMES)) CSS.highlights.set(name, highlights[severity]);
     }
     scan([document.body]);
     /* scan() disables scanning when the extension context is gone; do not attach an observer to a dead context. */
@@ -460,8 +467,8 @@
   function stopScan() {
     observer?.disconnect();
     observer = null;
-    CSS.highlights?.delete("slop-mark");
-    highlight = null;
+    for (const name of Object.values(HIGHLIGHT_NAMES)) CSS.highlights?.delete(name);
+    highlights = null;
     allRanges = [];
     processedBlocks = new WeakSet();
     blocksWithText = new WeakSet();

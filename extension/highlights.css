@@ -1,3 +1,7 @@
-::highlight(slop-mark) {
+::highlight(slop-major) {
   text-decoration: underline wavy #C42B1F 1.5px;
+}
+
+::highlight(slop-minor) {
+  text-decoration: underline wavy #D99A00 1.5px;
 }

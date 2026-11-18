@@ -78,10 +78,12 @@ function boot(html, { autoScanPages = true, supportsHighlights = true, orphaned 
 
 const tick = () => new Promise((r) => setTimeout(r, 60));
 
+function allRanges(w) {
+  return ["slop-major", "slop-minor", "slop-covered"].flatMap((name) => [...(w.CSS.highlights.get(name)?.ranges ?? [])]);
+}
+
 function highlightedTexts(w) {
-  const hl = w.CSS.highlights.get("slop-mark");
-  if (!hl) return [];
-  return [...hl.ranges].map((r) => r.toString());
+  return allRanges(w).map((r) => r.toString());
 }
 
 function lastFindingCount(messages) {
@@ -193,7 +195,9 @@ test("toggle off clears highlights and the toolbar count", async () => {
   set("autoScanPages", false);
   await tick();
   assert.strictEqual(observerStats.disconnected, 1);
-  assert.strictEqual(w.CSS.highlights.get("slop-mark"), undefined);
+  assert.strictEqual(w.CSS.highlights.get("slop-major"), undefined);
+  assert.strictEqual(w.CSS.highlights.get("slop-minor"), undefined);
+  assert.strictEqual(w.CSS.highlights.get("slop-covered"), undefined);
   assert.strictEqual(lastFindingCount(messages), 0);
 });
 
@@ -617,7 +621,7 @@ test("hovering an underline shows the rule and why it fired", async () => {
     shadows.set(this, root);
     return root;
   };
-  const range = [...w.CSS.highlights.get("slop-mark").ranges].find((r) => /pivotal moment/i.test(r.toString()));
+  const range = allRanges(w).find((r) => /pivotal moment/i.test(r.toString()));
   assert.ok(range, "the puffery should be marked");
   // jsdom has no layout: put the marked phrase at a known box and point the caret into it.
   const box = { left: 100, right: 200, top: 50, bottom: 70, width: 100, height: 20 };
@@ -641,4 +645,25 @@ test("hovering an underline shows the rule and why it fired", async () => {
   await hover(150, 300);
   assert.strictEqual(tip().style.getPropertyValue("display"), "none", "moving off the underline hides it");
   assert.strictEqual(w.document.body.querySelector("slop-detector-tip"), null, "<body> is never touched");
+});
+
+test("each underline is colored by its rule's severity, with major painted over minor", async () => {
+  const { messages, w } = boot(`<p>Two job offers. Two kids. ${SLOP_P}</p>`);
+  await tick();
+  const major = w.CSS.highlights.get("slop-major");
+  const minor = w.CSS.highlights.get("slop-minor");
+  assert.ok(major.ranges.size > 0 && minor.ranges.size > 0, "the sample has findings of both severities");
+  for (const r of major.ranges) assert.strictEqual(r.slopFinding.severity, "major");
+  for (const r of minor.ranges) assert.strictEqual(r.slopFinding.severity, "minor");
+  assert.ok(major.priority > (minor.priority ?? 0));
+  const drawn = [...major.ranges, ...minor.ranges].map((r) => r.toString());
+  assert.ok(!drawn.includes("pivotal"), "a minor finding inside a major one draws no second underline");
+  const covered = [...w.CSS.highlights.get("slop-covered").ranges].map((r) => r.toString());
+  assert.ok(covered.includes("pivotal"), "it is kept, undrawn, so it still counts and shows on hover");
+  assert.strictEqual(lastFindingCount(messages), allRanges(w).length);
+
+  const css = fs.readFileSync(extensionFile("highlights.css"), "utf8");
+  const color = (name) => css.match(new RegExp(`::highlight\\(${name}\\)\\s*\\{[^}]*underline wavy (#[0-9A-Fa-f]{6})`))?.[1];
+  assert.ok(color("slop-major") && color("slop-minor"));
+  assert.notStrictEqual(color("slop-major"), color("slop-minor"));
 });

@@ -10,7 +10,8 @@ Install it from the [Chrome Web Store](https://chromewebstore.google.com/detail/
 
 The extension can:
 
-- underline findings without wrapping, replacing, or recoloring page text;
+- underline findings without wrapping, replacing, or recoloring page text, in
+  red for major findings and amber for minor ones;
 - name the rule behind an underline, and say why it fired, when you hover it;
 - check pasted drafts in its popup;
 - check selected text from the context menu in that popup; and
