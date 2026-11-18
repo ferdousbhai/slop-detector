@@ -9,26 +9,31 @@
     return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
 
+  /* Overlapping findings share one mark, which is major if any of them is and names every rule. */
   function mergeSpans(findings) {
-    const spans = findings.filter((f) => f.end > f.start).map((f) => [f.start, f.end]);
-    spans.sort((a, b) => a[0] - b[0]);
+    const spans = findings.filter((f) => f.end > f.start).sort((a, b) => a.start - b.start);
     const merged = [];
-    for (const [s, e] of spans) {
+    for (const f of spans) {
       const last = merged[merged.length - 1];
-      if (last && s <= last[1]) last[1] = Math.max(last[1], e);
-      else merged.push([s, e]);
+      if (last && f.start <= last.end) {
+        last.end = Math.max(last.end, f.end);
+        last.findings.push(f);
+      } else {
+        merged.push({ start: f.start, end: f.end, findings: [f] });
+      }
     }
     return merged;
   }
 
   function renderMarked(text, findings) {
-    const spans = mergeSpans(findings);
     let html = "";
     let cursor = 0;
-    for (const [s, e] of spans) {
-      html += escapeHtml(text.slice(cursor, s));
-      html += `<mark>${escapeHtml(text.slice(s, e))}</mark>`;
-      cursor = e;
+    for (const { start, end, findings: within } of mergeSpans(findings)) {
+      const severity = within.some((f) => f.severity === "major") ? "major" : "minor";
+      const title = within.map((f) => `${f.ruleId} · ${f.severity}: ${f.message}`).join("\n");
+      html += escapeHtml(text.slice(cursor, start));
+      html += `<mark class="${severity}" title="${escapeHtml(title)}">${escapeHtml(text.slice(start, end))}</mark>`;
+      cursor = end;
     }
     html += escapeHtml(text.slice(cursor));
     return html;
@@ -62,7 +67,7 @@
     marked.style.display = "block";
 
     list.innerHTML = r.findings
-      .map((f) => `<li><span class="tag">${f.ruleId} · ${f.severity}</span>${escapeHtml(f.message)}</li>`)
+      .map((f) => `<li class="${f.severity === "major" ? "major" : "minor"}"><span class="tag">${f.ruleId} · ${f.severity}</span>${escapeHtml(f.message)}</li>`)
       .join("");
     list.style.display = "block";
   }

@@ -38,6 +38,19 @@ slop-detector-chrome-store-v1.1.1.zip.sha256
 The workflow retains both files as a workflow artifact and attaches them to a
 draft GitHub Release. Review the notes and artifacts, then publish the release.
 
+## Store screenshots
+
+Capture both screenshots from the real extension, so they show what it draws.
+Never mark findings by hand in the source page.
+
+- `screenshot-page-underlines.png`: serve `store-assets/source/` locally, open
+  `page-underlines.html` in Chromium with `extension/` loaded and a 1280×800
+  viewport, and hover an underline so the label shows.
+- `screenshot-popup-certified-slop.png`: open the extension's `popup.html` at a
+  420-pixel-wide viewport, run a check on a sloppy draft, and place the capture
+  at (431, 57) on a 1280×800 `#E9E5DA` canvas with a 1-pixel `#23241F` border
+  and a 6-pixel offset `#41413B` shadow.
+
 ## Publish Chrome
 
 Upload `slop-detector-chrome-store-v1.1.1.zip` from the GitHub Release to the

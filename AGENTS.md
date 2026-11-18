@@ -25,7 +25,7 @@ and keep README.md and STORE_LISTING.md describing it.
 | Underline color follows the rule's severity: red for major, amber for minor. A minor finding inside a major one draws no second line but still counts and shows on hover. | `test-scanner.js`: "each underline is colored by its rule's severity, with major painted over minor" |
 | Hovering an underline shows every finding under the pointer with its rule ID, severity, and message. | `test-scanner.js`: "hovering an underline shows the rule and why it fired" |
 | The toolbar badge shows the page's finding count. | `test-extension.js`: "background maps scanner counts to tab-scoped action state" |
-| The popup checks pasted text and shows a verdict, a score, the marked text, and each finding's rule, severity, and message. | `extension/popup.js` (no automated test yet) |
+| The popup checks pasted text and shows a verdict, a score, the marked text, and each finding's rule, severity, and message. | `test-extension.js`: "the popup shows a verdict, a score, the marked text, and why each finding fired" |
 | Right-clicking selected text opens it in the popup. | `test-extension.js`: "context-menu selections open in the extension popup" |
 | The auto-scan toggle turns page scanning off and on. | `test-scanner.js`: "toggle off clears highlights and the toolbar count" |
 | The CLI lints repositories and agent output, with exit code 1 on errors and JSON on request. | `test-cli.js` |

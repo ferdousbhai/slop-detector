@@ -127,3 +127,42 @@ test("the extension stays local and keeps its permission set", () => {
     assert.doesNotMatch(source, network, `${name} must not reach the network`);
   }
 });
+
+test("the popup shows a verdict, a score, the marked text, and why each finding fired", async (t) => {
+  const html = fs.readFileSync(extensionFile("popup.html"), "utf8");
+  const dom = new JSDOM(html, { runScripts: "outside-only" });
+  t.after(() => dom.window.close());
+  dom.window.chrome = {
+    storage: {
+      sync: { get: (defaults, callback) => callback(defaults), set: () => {} },
+      session: { get: async () => ({}), remove: async () => {} },
+    },
+  };
+  dom.window.eval(fs.readFileSync(extensionFile("engine.js"), "utf8"));
+  dom.window.eval(fs.readFileSync(extensionFile("popup.js"), "utf8"));
+  const doc = dom.window.document;
+  const text = "Two job offers. Two kids. This launch marks a pivotal moment for the team.";
+  doc.getElementById("input").value = text;
+  doc.getElementById("check").click();
+
+  const { findings, label, score } = dom.window.SlopEngine.analyze(text);
+  assert.equal(doc.getElementById("stamp").textContent, label);
+  assert.equal(doc.getElementById("score").textContent, `${score}/100`);
+  assert.equal(doc.getElementById("marked").textContent, text, "marking never changes the text");
+
+  const items = [...doc.querySelectorAll("#findings li")];
+  assert.equal(items.length, findings.length);
+  findings.forEach((f, i) => {
+    assert.ok(items[i].textContent.includes(`${f.ruleId} · ${f.severity}`));
+    assert.ok(items[i].textContent.includes(f.message));
+    assert.ok(items[i].classList.contains(f.severity));
+  });
+
+  const marks = [...doc.querySelectorAll("#marked mark")];
+  const pivotal = marks.find((m) => m.textContent.includes("pivotal"));
+  assert.ok(pivotal.classList.contains("major"), "a span holding a major finding is marked major");
+  assert.match(pivotal.title, /puffery · major/);
+  assert.match(pivotal.title, /ai-vocabulary · minor/);
+  const fragment = marks.find((m) => m.textContent === "Two job offers.");
+  assert.ok(fragment.classList.contains("minor"));
+});

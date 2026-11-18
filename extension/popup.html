@@ -12,6 +12,7 @@
     --amber: #8A6100;
     --green: #2E6B34;
     --mark: #F9E27D;
+    --minor: #A87400;
   }
   * { box-sizing: border-box; }
   body {
@@ -52,12 +53,14 @@
     font: 13px/1.7 "Courier New", monospace; white-space: pre-wrap; word-wrap: break-word;
   }
   mark {
-    background: var(--mark);
+    background: var(--mark); color: inherit;
     border-bottom: 2px solid var(--red);
     padding: 0 1px;
   }
+  mark.minor { background: #FBF0C4; border-bottom-color: var(--minor); }
   #findings { margin: 12px 0 0; padding: 0; list-style: none; display: none; }
   #findings li { margin-bottom: 8px; padding-left: 10px; border-left: 3px solid var(--red); }
+  #findings li.minor { border-left-color: var(--minor); }
   #findings .tag {
     display: block; font: 700 10px/1.6 "Courier New", monospace;
     letter-spacing: .08em; text-transform: uppercase; color: var(--graphite);
