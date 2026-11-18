@@ -11,6 +11,7 @@ Install it from the [Chrome Web Store](https://chromewebstore.google.com/detail/
 The extension can:
 
 - underline findings without wrapping, replacing, or recoloring page text;
+- name the rule behind an underline, and say why it fired, when you hover it;
 - check pasted drafts in its popup;
 - check selected text from the context menu in that popup; and
 - show the page finding count on its toolbar badge.

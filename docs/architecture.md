@@ -60,7 +60,9 @@ repository tooling gains its own distribution lifecycle.
 
 - Detection is local and deterministic.
 - Content scripts register CSS Custom Highlights and do not add, remove, wrap,
-  or replace host-page DOM nodes.
+  or replace host-page DOM nodes inside `<body>`. The one element they add is
+  the hover label: a sibling of `<body>` with a closed shadow root, shown in
+  the top layer, and never read as page text.
 - Repository files and agent-output stdin are treated as untrusted input and
   bounded to 1 MB per file or payload.
 - Symlinks and binary files are not scanned. A symlink named on the command

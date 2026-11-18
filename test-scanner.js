@@ -606,3 +606,39 @@ test("a body-level change beside a large text-free subtree does not visit that s
   await tick();
   assert.ok(visited < 100, `${visited} nodes visited for one appended tooltip`);
 });
+
+test("hovering an underline shows the rule and why it fired", async () => {
+  const { w } = boot(`<p>${SLOP_P}</p>`);
+  await tick();
+  const shadows = new WeakMap();
+  const attachShadow = w.Element.prototype.attachShadow;
+  w.Element.prototype.attachShadow = function (init) {
+    const root = attachShadow.call(this, init);
+    shadows.set(this, root);
+    return root;
+  };
+  const range = [...w.CSS.highlights.get("slop-mark").ranges].find((r) => /pivotal moment/i.test(r.toString()));
+  assert.ok(range, "the puffery should be marked");
+  // jsdom has no layout: put the marked phrase at a known box and point the caret into it.
+  const box = { left: 100, right: 200, top: 50, bottom: 70, width: 100, height: 20 };
+  w.Range.prototype.getClientRects = function () { return this === range ? [box] : []; };
+  w.document.caretPositionFromPoint = (x) => ({ offsetNode: range.startContainer, offset: range.startOffset + (x > 150 ? 1 : 0) });
+  const hover = async (x, y) => {
+    w.document.dispatchEvent(new w.MouseEvent("mousemove", { clientX: x, clientY: y }));
+    await tick();
+  };
+  const tip = () => w.document.querySelector("slop-detector-tip");
+
+  await hover(150, 60);
+  assert.ok(tip(), "a label should appear");
+  assert.strictEqual(tip().parentNode, w.document.documentElement, "the label sits outside <body>");
+  assert.strictEqual(tip().style.getPropertyValue("display"), "block");
+  assert.strictEqual(tip().shadowRoot, null, "the page cannot reach into the label");
+  const label = shadows.get(tip()).querySelector(".tip").textContent;
+  assert.match(label, /^puffery · /, `label should name the rule, got: ${label}`);
+  assert.ok(label.includes(range.slopFinding.message), "label should say why the phrase was flagged");
+
+  await hover(150, 300);
+  assert.strictEqual(tip().style.getPropertyValue("display"), "none", "moving off the underline hides it");
+  assert.strictEqual(w.document.body.querySelector("slop-detector-tip"), null, "<body> is never touched");
+});

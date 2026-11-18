@@ -192,6 +192,7 @@
         range.setStart(startEntry.node, f.start - startEntry.start);
         range.setEnd(endEntry.node, Math.min(f.end, endEntry.end) - endEntry.start);
         range.slopBlock = block;
+        range.slopFinding = f;
         highlight.add(range);
         allRanges.push(range);
       } catch { /* Nodes can detach between traversal and Range construction. */ }
@@ -249,6 +250,107 @@
     removeRanges((range) => !isLiveRange(range));
     reportFindingCount();
   }
+
+  /* Hovering an underline names the rule behind it. The label is the one element the extension adds:
+     a sibling of <body>, never inside it, so no page content moves, and it is never read as text.
+     Its shadow root is closed and it sits in the top layer, so page styles cannot hide or restyle it. */
+  let tipHost = null;
+  let tipBody = null;
+
+  function ensureTip() {
+    if (tipHost?.isConnected) return tipHost;
+    tipHost = document.createElement("slop-detector-tip");
+    tipHost.setAttribute("popover", "manual");
+    tipHost.setAttribute("aria-hidden", "true");
+    tipHost.style.cssText = "all: initial !important; position: fixed !important; margin: 0 !important; "
+      + "inset: auto !important; pointer-events: none !important; display: none !important;";
+    const shadow = tipHost.attachShadow({ mode: "closed" });
+    shadow.innerHTML = `<style>
+      :host { all: initial; }
+      .tip { box-sizing: border-box; max-width: min(360px, calc(100vw - 16px)); padding: 6px 8px;
+        background: #23241F; color: #F6F4EE; border-radius: 4px; box-shadow: 0 2px 8px rgb(0 0 0 / .35);
+        font: 13px/1.35 system-ui, sans-serif; text-align: start; white-space: normal; }
+      .item + .item { margin-top: 6px; padding-top: 6px; border-top: 1px solid rgb(246 244 238 / .2); }
+      .rule { display: block; margin-bottom: 2px; color: #F2A79F; font: 700 11px/1.3 ui-monospace, monospace; }
+    </style><div class="tip"></div>`;
+    tipBody = shadow.querySelector(".tip");
+    document.documentElement.appendChild(tipHost);
+    return tipHost;
+  }
+
+  function hideTip() {
+    if (!tipHost || tipHost.style.getPropertyValue("display") === "none") return;
+    tipHost.style.setProperty("display", "none", "important");
+    try { tipHost.hidePopover?.(); } catch { /* Already hidden. */ }
+  }
+
+  function showTip(ranges, anchor) {
+    const host = ensureTip();
+    tipBody.replaceChildren(...ranges.map(({ slopFinding: f }) => {
+      const item = document.createElement("div");
+      item.className = "item";
+      const rule = document.createElement("span");
+      rule.className = "rule";
+      rule.textContent = `${f.ruleId} · ${f.severity}`;
+      item.append(rule, f.message);
+      return item;
+    }));
+    host.style.setProperty("display", "block", "important");
+    host.style.setProperty("visibility", "hidden", "important");
+    try { host.showPopover?.(); } catch { /* Already showing. */ }
+    const { offsetWidth: tw, offsetHeight: th } = host;
+    const x = Math.max(8, Math.min(anchor.left + anchor.width / 2 - tw / 2, window.innerWidth - tw - 8));
+    const y = anchor.top - th - 6 >= 8 ? anchor.top - th - 6 : anchor.bottom + 6;
+    host.style.setProperty("left", `${Math.round(x)}px`, "important");
+    host.style.setProperty("top", `${Math.round(y)}px`, "important");
+    host.style.setProperty("visibility", "visible", "important");
+  }
+
+  function caretAt(x, y) {
+    const p = document.caretPositionFromPoint?.(x, y);
+    if (p) return { node: p.offsetNode, offset: p.offset };
+    const r = document.caretRangeFromPoint?.(x, y);
+    return r ? { node: r.startContainer, offset: r.startOffset } : null;
+  }
+
+  /* The caret lands on the nearest character even past the end of a line, so a hit also has to
+     lie inside one of the range's line boxes. */
+  function rangesAt(x, y) {
+    const caret = caretAt(x, y);
+    if (!caret || caret.node?.nodeType !== Node.TEXT_NODE) return [];
+    const hits = [];
+    for (const range of allRanges) {
+      if (!range.slopFinding || !range.slopBlock.contains(caret.node)) continue;
+      if (!range.isPointInRange(caret.node, caret.offset)) continue;
+      for (const rect of range.getClientRects()) {
+        if (x >= rect.left && x <= rect.right && y >= rect.top - 2 && y <= rect.bottom + 4) {
+          hits.push({ range, rect });
+          break;
+        }
+      }
+    }
+    return hits;
+  }
+
+  let hoverPending = false;
+  let lastPointer = null;
+  document.addEventListener("mousemove", (event) => {
+    lastPointer = { x: event.clientX, y: event.clientY };
+    if (hoverPending) return;
+    if (!scanEnabled || allRanges.length === 0) {
+      hideTip();
+      return;
+    }
+    hoverPending = true;
+    requestAnimationFrame(() => {
+      hoverPending = false;
+      const hits = rangesAt(lastPointer.x, lastPointer.y);
+      if (hits.length) showTip(hits.map((h) => h.range), hits[0].rect);
+      else hideTip();
+    });
+  }, { passive: true });
+  document.documentElement.addEventListener("mouseleave", hideTip);
+  window.addEventListener("scroll", hideTip, { capture: true, passive: true });
 
   /* Each mutation names what has to be read again, so a page that streams text into one paragraph
      costs one paragraph per frame, not a walk of the whole document. */
@@ -364,6 +466,7 @@
     processedBlocks = new WeakSet();
     blocksWithText = new WeakSet();
     blocksOwningText = new WeakSet();
+    hideTip();
     reportFindingCount();
   }
 
