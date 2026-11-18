@@ -19,6 +19,12 @@ See [`docs/releasing.md`](docs/releasing.md) for versioning and release steps.
   Underlines slop on any page; check drafts in the popup.
 - **Category**: Tools
 - **Language**: English (US)
+- **Official URL**: None. The field takes only a site verified in Google
+  Search Console, and the project has no site of its own.
+- **Homepage URL**: https://github.com/ferdousbhai/slop-detector
+- **Support URL**: https://github.com/ferdousbhai/slop-detector/issues
+- **Privacy policy URL** (Privacy tab):
+  https://github.com/ferdousbhai/slop-detector/blob/main/PRIVACY.md
 
 ### Description
 
