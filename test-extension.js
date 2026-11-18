@@ -112,3 +112,18 @@ test("popup consumes an in-memory context-menu selection", async (t) => {
   assert.equal(dom.window.document.getElementById("findings").style.display, "block");
   assert.deepEqual(removed, ["pendingSelection"]);
 });
+
+test("the extension stays local and keeps its permission set", () => {
+  const manifest = JSON.parse(fs.readFileSync(extensionFile("manifest.json"), "utf8"));
+  assert.deepEqual([...manifest.permissions].sort(), ["contextMenus", "storage"]);
+  assert.equal(manifest.host_permissions, undefined);
+  assert.equal(manifest.optional_permissions, undefined);
+  assert.equal(manifest.optional_host_permissions, undefined);
+
+  const network = /\b(?:fetch|XMLHttpRequest|WebSocket|EventSource|sendBeacon|importScripts)\b|\bimport\s*\(|https?:\/\//;
+  for (const name of fs.readdirSync(path.join(__dirname, "extension"))) {
+    if (!/\.(?:js|html|css)$/.test(name)) continue;
+    const source = fs.readFileSync(extensionFile(name), "utf8");
+    assert.doesNotMatch(source, network, `${name} must not reach the network`);
+  }
+});
