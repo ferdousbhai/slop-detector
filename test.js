@@ -1,6 +1,8 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { analyze } = require("./extension/engine.js");
+const fs = require("node:fs");
+const path = require("node:path");
 
 test("heavy slop scores high", () => {
   const text = `I hope this message finds you well! I'd be happy to delve into this topic.
@@ -325,4 +327,23 @@ test("a closing quote after a URL keeps the sentence end, and messages quote the
   assert.ok(finding);
   assert.ok(finding.message.includes("https://example.com/status"), finding.message);
   assert.ok(!finding.message.includes("///"), finding.message);
+});
+
+test("a replacement hint follows the quoted phrase without a dangling dash", () => {
+  const messages = analyze("We leverage it in order to ship. Let us delve into the plan.").findings.map((f) => f.message);
+  assert.ok(messages.includes("\"leverage\" → “use”."), messages.join(" | "));
+  assert.ok(messages.includes("\"in order to\" → “to”."), messages.join(" | "));
+  assert.ok(messages.includes("\"delve\" — Top AI tell."), messages.join(" | "));
+});
+
+test("no finding ends partway through a word", () => {
+  const html = fs.readFileSync(path.join(__dirname, "store-assets", "source", "page-underlines.html"), "utf8");
+  const prose = [...html.matchAll(/<p>([\s\S]*?)<\/p>/g)].map((m) => m[1]).join("\n\n");
+  const samples = [prose, "Teams navigate the complexities of change. We navigate these challenges daily."];
+  for (const text of samples) {
+    for (const f of analyze(text).findings) {
+      const cut = /\p{L}/u.test(text[f.end - 1] ?? "") && /\p{L}/u.test(text[f.end] ?? "");
+      assert.ok(!cut, `${f.ruleId} cuts a word: "${text.slice(f.start, f.end)}|${text.slice(f.end, f.end + 8)}"`);
+    }
+  }
 });

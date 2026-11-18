@@ -256,7 +256,7 @@
     { id: "inflated-verb", p: /\bstands? as\b/i, why: "\u2192 just say \u201Cis\u201D." },
     { id: "inflated-verb", p: /\bboasts?\b/i, why: "\u2192 \u201Chas\u201D." },
 
-    { id: "landscape-cliche", p: /\bnavigat(?:e|ing) (?:the|this|these|today's) (?:complex|challenging|evolving|landscape)/i, why: "\u201CNavigating the X landscape\u201D clich\u00E9." },
+    { id: "landscape-cliche", p: /\bnavigat(?:e|ing) (?:the|this|these|today's) (?:complex(?:ity|ities)?|challeng(?:e|es|ing)|evolving|landscape)\b/i, why: "\u201CNavigating the X landscape\u201D clich\u00E9." },
     ...[
       ["delve", "Top AI tell."], ["tapestry", "AI metaphor noun."], ["foster(?:s|ing|ed)?", "AI vocabulary."],
       ["leverag(?:e|es|ing|ed)", "\u2192 \u201Cuse\u201D."], ["utiliz(?:e|es|ing|ed)", "\u2192 \u201Cuse\u201D."],
@@ -292,8 +292,10 @@
           const spans = at === "sentence"
             ? findAtSentenceStarts(text, pattern)
             : findAll(text, pattern, (match) => ({ start: match.index, end: match.index + match[0].length }));
+          /* A replacement ("\u2192 \u201Cuse\u201D") reads on from the quote; an explanation needs the dash. */
+          const joiner = explanation.startsWith("\u2192") ? " " : " \u2014 ";
           for (const span of spans) {
-            out.push({ ...span, ruleId, message: `"${source.slice(span.start, span.end)}" \u2014 ${explanation}` });
+            out.push({ ...span, ruleId, message: `"${source.slice(span.start, span.end)}"${joiner}${explanation}` });
           }
         }
         return out;
