@@ -66,3 +66,6 @@ contract.
 - A commit message says why, not only what. "Prepare release" alone is not
   enough for a commit that also removes behavior.
 - Prose in this repository passes its own linter (`npm run lint`).
+- The Chrome Web Store description is the marked block in STORE_LISTING.md,
+  pasted as is. Change the live listing only from that block, and update the
+  block in the same change as any feature it describes.

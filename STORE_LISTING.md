@@ -22,28 +22,20 @@ See [`docs/releasing.md`](docs/releasing.md) for versioning and release steps.
 
 ### Description
 
-Red-pen linting for AI-flavored writing.
+Paste the text between the markers as is. A test keeps its rule count in step with the engine.
 
-Slop Detector lints prose for the telltale patterns of AI-generated writing —
-chatbot phrases ("I hope this message finds you well"), puffery ("marks a
-pivotal moment"), vague attribution ("experts believe"), binary contrasts
-("It's not just X, it's Y"), staged knockdowns ("…is the obvious reading, and
-it is wrong"), costume metaphors, clipped fragment runs, coy headings, em-dash
-density, uniform sentence rhythm, emoji bullets, and a larger catalog of
-recurring prose patterns.
+<!-- description:start -->
+Lints prose for common patterns of AI-generated writing: chatbot phrases ("I hope this message finds you well"), puffery ("marks a pivotal moment"), vague attribution ("experts believe"), binary contrasts ("It's not just X, it's Y"), em-dash density, uniform sentence rhythm, emoji bullets, and more, across 30 rules.
 
-- Auto-scan: visible text on every page is linted automatically. Findings get
-  a wavy underline via the CSS Custom Highlight API: red for major patterns,
-  amber for minor ones. Hover an underline to see the rule and why it fired.
-  Existing page text is not wrapped, replaced, recolored, hidden, or removed.
-- The toolbar badge shows the number of page findings.
-- Popup checker: paste a draft, get highlighted findings and a verdict —
-  READS HUMAN / SUSPICIOUS / CERTIFIED SLOP.
-- Right-click any selected text → "Check selection for slop" to open it in the
-  extension popup.
+- Underlines findings on any page you read: red for major patterns, amber for minor ones. Hover an underline to see the rule and why it fired.
+- The toolbar badge counts the findings on the current page.
+- Paste a draft into the popup to get a verdict: READS HUMAN, SUSPICIOUS, or CERTIFIED SLOP.
+- Right-click selected text and choose "Check selection for slop".
 
-Pure pattern matching: fast, explainable, no ML, no network calls, everything
-runs locally. Open source: https://github.com/ferdousbhai/slop-detector
+Pure pattern matching: fast, explainable, no ML, no network calls, everything runs locally. Page text is never changed.
+
+Open source: https://github.com/ferdousbhai/slop-detector
+<!-- description:end -->
 
 ## Privacy tab answers
 

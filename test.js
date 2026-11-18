@@ -347,3 +347,10 @@ test("no finding ends partway through a word", () => {
     }
   }
 });
+
+test("the store description states the engine's rule count", () => {
+  const listing = fs.readFileSync(path.join(__dirname, "STORE_LISTING.md"), "utf8");
+  const description = listing.match(/<!-- description:start -->\n([\s\S]*?)\n<!-- description:end -->/)?.[1];
+  assert.ok(description, "STORE_LISTING.md marks the description to paste");
+  assert.match(description, new RegExp(`\\b${Object.keys(require("./extension/engine.js").rules).length} rules\\b`));
+});
